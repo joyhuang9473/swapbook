@@ -28,7 +28,7 @@ import {console} from "forge-std/console.sol";
 // forge script DynamicFeesAvsHookDeploy --rpc-url $L2_RPC --private-key $PRIVATE_KEY
 // --broadcast -vvvv --verify --etherscan-api-key $L2_ETHERSCAN_API_KEY --chain
 // $L2_CHAIN --verifier-url $L2_VERIFIER_URL --sig="run(address,address)" $ATTESTATION_CENTER_ADDRESS $POOL_MANAGER_ADDRESS
-contract DynamicFeesAvsHookDeploy is Script {
+contract DeployAvsHook is Script {
     function setUp() public {}
 
     function run(address attestationCenter, address poolManager) public {
