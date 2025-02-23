@@ -1,0 +1,17 @@
+# Compiler files
+cache/
+out/
+
+# Ignores broadcast logs
+broadcast/
+
+
+# Docs
+docs/
+
+# Dotenv file
+.env
+
+lib/
+
+.DS_Store
