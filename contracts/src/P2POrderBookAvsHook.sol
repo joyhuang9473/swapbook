@@ -19,11 +19,11 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     struct Order {
         uint256 orderId;
         address account;
-        uint256 sqrtPrice;
+        uint256 sqrtPrice; // sqrt price used because it's cheaper to store
         uint256 amount;
-        bool isBid;
-        address token0;
-        address token1;
+        address baseAsset; // WETH in WETH/USDC
+        address quoteAsset; // USDC in WETH/USDC
+        bool isBid; // bid is buying, ask is selling
     }
 
     mapping(address => mapping(address => uint256)) public escrowedFunds; // maker => token => amount
@@ -58,6 +58,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     constructor(address _attestationCenterAddress, IPoolManager _poolManager) BaseHook(_poolManager) {
         ATTESTATION_CENTER = _attestationCenterAddress;
     }
+
 
     // TODO
     function afterTaskSubmission(
