@@ -9,8 +9,6 @@ router.post("/limitOrder", (req, res) => {
     const { symbol, side, quantity, price } = req.body;
     const order = controller.createOrder(symbol, side, quantity, price);
     res.status(200).json(order);
-
-    // Work in progress ^^
 });
 
 router.get("/orderBook", (req, res) => {
