@@ -12,10 +12,15 @@ const taskDefinitionId = {
 async function executeTask() {
     console.log("Executing task.....");
     try {
-        const result = await oracleService.getFee();
-        const cid = await dalService.publishJSONToIpfs({fee: result});
-        const data = Math.floor(result * 1e6) ;
-        await dalService.sendTask(cid, data, taskDefinitionId.KEEP_ALIVE);
+        // executeTask called when submitting an order
+        // Get order data and signature
+        // call: await dalService.sendTask(signature, orderData, 0);
+
+        // Previous code:
+        // const result = await oracleService.getFee();
+        // const cid = await dalService.publishJSONToIpfs({fee: result});
+        // const data = Math.floor(result * 1e6) ;
+        // await dalService.sendTask(cid, data, 0);
     } catch (error) {
         console.log(error)
     }
