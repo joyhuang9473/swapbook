@@ -11,20 +11,23 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeS
 import {IAvsLogic} from "./interfaces/IAvsLogic.sol";
 import {IAttestationCenter} from "./interfaces/IAttestationCenter.sol";
 import {console} from "forge-std/console.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     address public immutable ATTESTATION_CENTER;
 
     struct Order {
+        uint256 orderId;
         address account;
         uint256 sqrtPrice;
         uint256 amount;
+        bool isBid;
+        address token0;
+        address token1;
     }
 
-    Order public bestBid;
-    Order public bestAsk;
-
     mapping(address => mapping(address => uint256)) public escrowedFunds; // maker => token => amount
+    mapping(address => mapping(bool => Order)) public bestBidAndAsk; // token => isBid => Order
 
     event MakeOrder(uint256 indexed orderId, address indexed maker, uint256 sqrtPrice, uint256 amount);
 
@@ -66,12 +69,33 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     ) external {
         if (msg.sender != address(ATTESTATION_CENTER)) revert OnlyAttestationCenter();
 
+        // Parse the bytes data into structured data
+        Order memory order = Order({
+            orderId: uint256(bytes32(_taskInfo.data[0:32])),
+            account: address(uint160(uint256(bytes32(_taskInfo.data[32:52])))),
+            sqrtPrice: uint256(bytes32(_taskInfo.data[52:84])),
+            amount: uint256(bytes32(_taskInfo.data[84:116])),
+            isBid: uint8(_taskInfo.data[116]) == 1,
+            token0: address(uint160(uint256(bytes32(_taskInfo.data[117:137])))),
+            token1: address(uint160(uint256(bytes32(_taskInfo.data[137:157]))))
+        });
+
         if (_taskInfo.taskDefinitionId == 0) { // KeepAlive
             return;
         } else if (_taskInfo.taskDefinitionId == 1) { // MakeOrder
-            // TODO: if this order is the best bid, update the best bid
-            // TODO: if this order is the best ask, update the best ask
-            // TODO: escrow the funds
+            if (order.isBid && order.sqrtPrice > bestBidAndAsk[order.token0][true].sqrtPrice) {
+                // if this order is the best bid, update the best bid
+                bestBidAndAsk[order.token0][true] = order;
+            } else if (!order.isBid && order.sqrtPrice < bestBidAndAsk[order.token0][false].sqrtPrice) {
+                // if this order is the best ask, update the best ask
+                bestBidAndAsk[order.token0][false] = order;
+            }
+            // escrow the funds
+            if (order.isBid) {
+                this.escrowFunds(order.account, order.token1, order.amount);
+            } else {
+                this.escrowFunds(order.account, order.token0, order.amount);
+            }
         } else if (_taskInfo.taskDefinitionId == 2) { // FillOrder
             // TODO: fill the order
         } else if (_taskInfo.taskDefinitionId == 3) { // CancelOrder
