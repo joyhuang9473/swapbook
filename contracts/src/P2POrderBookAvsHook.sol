@@ -96,6 +96,13 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             } else {
                 this.escrowFunds(order.account, order.token0, order.amount);
             }
+
+            emit MakeOrder(
+                order.orderId,
+                order.account,
+                order.sqrtPrice,
+                order.amount
+            );
         } else if (_taskInfo.taskDefinitionId == 2) { // FillOrder
             // TODO: fill the order
         } else if (_taskInfo.taskDefinitionId == 3) { // CancelOrder
