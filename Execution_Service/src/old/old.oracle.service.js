@@ -1,7 +1,7 @@
 require('dotenv').config();
 const axios = require("axios");
 const { ethers } = require("ethers")
-const aggregatorV3InterfaceABI = require("./abi/aggregatorV3Interface");
+const aggregatorV3InterfaceABI = require("../abi/aggregatorV3Interface");
 
 // Set default values for Sepolia
 const DEFAULT_RPC_URL = "https://rpc.ankr.com/eth_sepolia";
