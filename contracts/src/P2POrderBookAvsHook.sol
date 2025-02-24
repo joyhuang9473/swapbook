@@ -113,7 +113,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        // TODO
+        return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
     }
 
 }
