@@ -1,6 +1,11 @@
-# Uniswap V4 Hook AVS Example
+# Uniswap V4 Hook AVS Ours
 
-This repository demonstrates how to implement a Dynamic Fees AMM using the Othentic Stack and Uniswap V4 Hooks.
+REPO DESCRIPTION
+
+taskDefinitionId:
+- 1: MakeOrder
+- 2: FillOrder
+- 3: CancelOrder
 
 ---
 

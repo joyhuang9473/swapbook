@@ -66,7 +66,9 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     ) external {
         if (msg.sender != address(ATTESTATION_CENTER)) revert OnlyAttestationCenter();
 
-        if (_taskInfo.taskDefinitionId == 1) { // MakeOrder
+        if (_taskInfo.taskDefinitionId == 0) { // KeepAlive
+            return;
+        } else if (_taskInfo.taskDefinitionId == 1) { // MakeOrder
             // TODO: if this order is the best bid, update the best bid
             // TODO: if this order is the best ask, update the best ask
             // TODO: escrow the funds
@@ -74,8 +76,10 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             // TODO: fill the order
         } else if (_taskInfo.taskDefinitionId == 3) { // CancelOrder
             // TODO: release the funds
+        } else {
+            revert("Invalid task definition id");
         }
-        
+
     }
 
     function beforeTaskSubmission(
