@@ -16,17 +16,6 @@ const token_address_mapping = {
     'WBTC': '0x5390Ebc9713181856FDE1d6c897d78461b81e48a',
     'USDC': '0x35C7bBa8449fa24dC44f64fff8CD7750BE58a4eC',
 }
-// struct Order {
-//     uint256 orderId;
-//     address account;
-//     uint256 sqrtPrice; // sqrt price used because it's cheaper to store (noteredundant as we have quote asset amount)
-//     uint256 amount; // base asset amount
-//     bool isBid; // bid is buying, ask is selling
-//     address baseAsset; // WETH in WETH/USDC
-//     address quoteAsset; // USDC in WETH/USDC
-//     uint256 quoteAmount; // quote asset amount (alternative representation of price, better for swapping)
-// }
-// await dalService.sendTask(cid, data, 0);
 
 async function createOrder(account, price, quantity, side, baseAsset, quoteAsset) {
     // Create form data
