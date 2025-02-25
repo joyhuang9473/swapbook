@@ -106,10 +106,12 @@ orderBook = dict(
 
 for ask in orderBook["asks"]:
     payloadString = json.dumps({
-        "symbol": "%s_%s" % (orderBook["baseAsset"], orderBook["quoteAsset"]),
-        "side": "ask",
+        "account": "0x1234567890123456789012345678901234567890",
+        "price": ask["price"],
         "quantity": ask["amount"],
-        "price": ask["price"]
+        "side": "ask",
+        "baseAsset": orderBook["baseAsset"],
+        "quoteAsset": orderBook["quoteAsset"]
     })
 
     payload = {"payload": payloadString}
@@ -119,10 +121,12 @@ for ask in orderBook["asks"]:
 
 for bid in orderBook["bids"]:
     payloadString = json.dumps({
-        "symbol": "%s_%s" % (orderBook["baseAsset"], orderBook["quoteAsset"]),
-        "side": "bid",
+        "account": "0x1234567890123456789012345678901234567890",
+        "price": bid["price"],
         "quantity": bid["amount"],
-        "price": bid["price"]
+        "side": "bid",
+        "baseAsset": orderBook["baseAsset"],
+        "quoteAsset": orderBook["quoteAsset"]
     })
 
     payload = {"payload": payloadString}

@@ -12,7 +12,7 @@ app.counter = 0
 def register_order(payload: str = Form(...)):
     try:
         payload_json = json.loads(payload)
-        symbol = payload_json['symbol']
+        symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
 
         if symbol not in order_books:
             order_books[symbol] = OrderBook()
@@ -21,21 +21,28 @@ def register_order(payload: str = Form(...)):
 
         _order = {
             'type' : 'limit',
-            'side' : payload_json['side'], 
-            'quantity' : payload_json['quantity'],
+            'trade_id' : app.counter,
+            'account': payload_json['account'],
             'price' : payload_json['price'],
-            'trade_id' : app.counter
+            'quantity' : payload_json['quantity'],
+            'side' : payload_json['side'],
+            'baseAsset' : payload_json['baseAsset'],
+            'quoteAsset' : payload_json['quoteAsset']
         }
         trades, order = order_book.process_order(_order, False, False)
         app.counter += 1
 
         # Convert order to a serializable format
         order_dict = {
-            'type': order['type'],
-            'side': order['side'],
-            'quantity': float(order['quantity']),
+            'order_id': int(order['order_id']),
+            'account': order['account'],
             'price': float(order['price']),
-            'trade_id': int(order['trade_id'])
+            'quantity': float(order['quantity']),
+            'side': order['side'],
+            'baseAsset': order['baseAsset'],
+            'quoteAsset': order['quoteAsset'],
+            # 'type': order['type'],
+            # 'trade_id': int(order['trade_id']),
         }
 
         return JSONResponse(content={
