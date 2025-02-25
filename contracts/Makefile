@@ -19,8 +19,13 @@ step1_avsHook:
 	@forge script ./script/DeployAvsHook.s.sol --broadcast \
 		--rpc-url $(L2_RPC) \
 		--private-key $(PRIVATE_KEY) \
+		--verify \
+		--etherscan-api-key $(L2_ETHERSCAN_API_KEY) \
+		--delay 60 \
 		-v \
-		--sig "run(address,address)" $(ATTESTATION_CENTER_ADDRESS) $(POOL_MANAGER_ADDRESS)
+		--sig "run(address,address)" $(ATTESTATION_CENTER_ADDRESS) $(POOL_MANAGER_ADDRESS) | tee deploy_log.txt; \
+	grep "Deployed P2POrderBookAvsHook at:" deploy_log.txt | awk '{print "AVS_HOOK_ADDRESS=" $$4}' >> .env; \
+	rm deploy_log.txt;
 	$(END_LOG)
 
 .PHONY: step2_token
