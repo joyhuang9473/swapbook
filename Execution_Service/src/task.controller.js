@@ -115,7 +115,7 @@ async function getBestOrder(baseAsset, quoteAsset, side) {
     return data;
 }
 
-async function sendTask(data) {
+async function sendUpdateBestTask(data) {
     const order = {
         orderId: data['order']['order_id'],
         account: data['order']['account'],
@@ -126,7 +126,7 @@ async function sendTask(data) {
         quoteAsset: token_address_mapping[data['order']['quoteAsset']],
         quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
     }
-    const result = await dalService.sendTask(order.orderId.toString(), order, taskDefinitionId.UpdateBest);
+    const result = await dalService.sendUpdateBestTask(order.orderId.toString(), order, taskDefinitionId.UpdateBest);
     return result;
 }
 
@@ -179,7 +179,7 @@ module.exports = {
     createOrder,
     sendCreateOrderTask,
     sendFillOrderTask,
-    sendTask,
+    sendUpdateBestTask,
     
     cancelOrder,
     sendCancelOrderTask,

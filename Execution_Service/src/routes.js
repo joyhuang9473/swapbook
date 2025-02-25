@@ -32,7 +32,7 @@ router.post("/limitOrder", async (req, res) => {
             // update the best price
             const opposite_side = side === 'bid' ? 'ask' : 'bid';
             const _data = await taskController.getBestOrder(baseAsset, quoteAsset, opposite_side);
-            result = await taskController.sendTask(_data);
+            result = await taskController.sendUpdateBestTask(_data);
         }
 
         if (result) {
