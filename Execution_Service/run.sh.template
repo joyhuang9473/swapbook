@@ -1,0 +1,14 @@
+curl -X POST http://localhost:4003/api/limitOrder \
+-H "Content-Type: application/json" \
+-d '{
+    "symbol": "WBTC_USDC",
+    "side": "bid",
+    "quantity": 1.5,
+    "price": 50000
+}'
+
+curl -X POST http://localhost:4003/api/orderBook \
+-H "Content-Type: application/json" \
+-d '{
+    "symbol": "WBTC_USDC"
+}'
