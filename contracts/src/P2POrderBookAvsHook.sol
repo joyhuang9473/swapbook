@@ -282,7 +282,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         else if (_taskInfo.taskDefinitionId == 1) taskFillOrder(_taskInfo.data);
         // ProcessWithdrawal - AVS triggers user withdrawal
         else if (_taskInfo.taskDefinitionId == 2) taskProcessWithdrawal(_taskInfo.data);
-        else revert InvalidTaskDefinitionId();
+        // else revert InvalidTaskDefinitionId(); // no-op
     }
 
     // ============== UNUSED FUNCTIONS ==============
