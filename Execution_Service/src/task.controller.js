@@ -1,7 +1,5 @@
 "use strict";
 require("dotenv").config();
-const dalService = require("./dal.service.js");
-const { ethers } = require("ethers");
 
 const taskDefinitionId = {
     UpdateBest: 0,
@@ -40,18 +38,6 @@ async function createOrder(account, price, quantity, side, baseAsset, quoteAsset
     }
 
     const data = await response.json();
-    const order = {
-        orderId: data['order']['order_id'],
-        account: data['order']['account'],
-        sqrtPrice: ethers.parseUnits(Math.sqrt(data['order']['price']).toString(), decimal),
-        amount: ethers.parseUnits(data['order']['quantity'].toString(), decimal),
-        isBid: data['order']['side'] === 'bid',
-        baseAsset: token_address_mapping[data['order']['baseAsset']],
-        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
-        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
-    }
-
-    await dalService.sendTask(order.orderId.toString(), order, taskDefinitionId.UpdateBest);
     return data;
 }
 
