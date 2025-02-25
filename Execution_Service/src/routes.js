@@ -28,7 +28,7 @@ router.post("/cancelOrder", async (req, res) => {
     const { orderId, side, baseAsset, quoteAsset } = req.body;
     try {
         const data = await taskController.cancelOrder(orderId, side, baseAsset, quoteAsset);
-        const result = data["message"] !== "Order cancelled successfully" ? false : true;        
+        const result = await taskController.sendCancelOrderTask(data);   
 
         if (result) {
             return res.status(200).send(new CustomResponse(data));

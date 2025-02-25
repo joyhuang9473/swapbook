@@ -7,14 +7,17 @@ const taskDefinitionId = {
     UpdateBest: 0,
     FillOrder: 1,
     ProcessWithdrawal: 2,
+
+    // internal task: start from 10000
+    INTERNAL_CancelOrder: 10000,
 }
 
 const decimal = 18;
 
 // TODO: hard code for now
 const token_address_mapping = {
-    'WBTC': '0x5390Ebc9713181856FDE1d6c897d78461b81e48a',
-    'USDC': '0x35C7bBa8449fa24dC44f64fff8CD7750BE58a4eC',
+    'WBTC': '0x832fbBCB6B4F4F6F97A05898B735edc4Fc6BF618',
+    'USDC': '0xD834AEE46DDc4c7bBa4126396d0395B87B05c60c',
 }
 
 async function createOrder(account, price, quantity, side, baseAsset, quoteAsset) {
@@ -37,6 +40,30 @@ async function createOrder(account, price, quantity, side, baseAsset, quoteAsset
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `Failed to create order: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+}
+
+async function cancelOrder(orderId, side, baseAsset, quoteAsset) {
+    // Create form data
+    const formData = new FormData();
+    formData.append('payload', JSON.stringify({
+        orderId: orderId,
+        side: side,
+        baseAsset: baseAsset,
+        quoteAsset: quoteAsset
+    }));
+
+    const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/cancel_order`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to cancel order: ${response.status}`);
     }
 
     const data = await response.json();
@@ -79,4 +106,25 @@ async function sendTask(data) {
     return result;
 }
 
-module.exports = { generateOrderBook, createOrder, sendTask};
+async function sendCancelOrderTask(data) {
+    const order = {
+        orderId: data['order']['order_id'],
+        isBid: data['order']['side'] === 'bid',
+        baseAsset: token_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
+    }
+    const result = await dalService.sendCancelOrderTask(order.orderId.toString(), order, taskDefinitionId.INTERNAL_CancelOrder);
+    return result;
+}
+
+module.exports = {
+    generateOrderBook,
+
+    taskDefinitionId,
+    
+    createOrder,
+    sendTask,
+    
+    cancelOrder,
+    sendCancelOrderTask
+};

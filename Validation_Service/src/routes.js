@@ -9,11 +9,12 @@ const router = Router()
 router.post("/validate", async (req, res) => {
     const proofOfTask = req.body.proofOfTask;
     const data = req.body.data;
+    const taskDefinitionId = req.body.taskDefinitionId;
 
     console.log(`Validate task: proof of task: ${proofOfTask}`);
 
     try {
-        const result = await validatorService.validate(proofOfTask, data);
+        const result = await validatorService.validate(proofOfTask, data, taskDefinitionId);
         console.log('Vote:', result ? 'Approve' : 'Not Approved');
         return res.status(200).send(new CustomResponse(result));
     } catch (error) {

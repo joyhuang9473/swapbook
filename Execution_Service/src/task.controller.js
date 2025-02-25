@@ -7,6 +7,9 @@ const taskDefinitionId = {
     UpdateBest: 0,
     FillOrder: 1,
     ProcessWithdrawal: 2,
+
+    // internal task: start from 10000
+    INTERNAL_CancelOrder: 10000,
 }
 
 const decimal = 18;
@@ -103,4 +106,25 @@ async function sendTask(data) {
     return result;
 }
 
-module.exports = { generateOrderBook, sendTask, createOrder, cancelOrder };
+async function sendCancelOrderTask(data) {
+    const order = {
+        orderId: data['order']['order_id'],
+        isBid: data['order']['side'] === 'bid',
+        baseAsset: token_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
+    }
+    const result = await dalService.sendCancelOrderTask(order.orderId.toString(), order, taskDefinitionId.INTERNAL_CancelOrder);
+    return result;
+}
+
+module.exports = {
+    generateOrderBook,
+
+    taskDefinitionId,
+    
+    createOrder,
+    sendTask,
+    
+    cancelOrder,
+    sendCancelOrderTask
+};
