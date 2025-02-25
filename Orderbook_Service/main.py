@@ -65,10 +65,10 @@ def cancel_order(payload: str = Form(...)):
 
         # Convert order to a serializable format
         order_dict = {
-            'order_id': int(order['order_id']),
-            'side': order['side'],
-            'baseAsset': order['baseAsset'],
-            'quoteAsset': order['quoteAsset'],
+            'order_id': int(order_id),
+            'side': side,
+            'baseAsset': payload_json["baseAsset"],
+            'quoteAsset': payload_json["quoteAsset"],
         }
 
         return JSONResponse(content={
