@@ -13,52 +13,28 @@ import {IAttestationCenter} from "./interfaces/IAttestationCenter.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+struct Order {
+    uint256 orderId;
+    address account;
+    uint256 sqrtPrice; // sqrt price used because it's cheaper to store (noteredundant as we have quote asset amount)
+    uint256 amount; // base asset amount
+    bool isBid; // bid is buying, ask is selling
+    address baseAsset; // WETH in WETH/USDC
+    address quoteAsset; // USDC in WETH/USDC
+    uint256 quoteAmount; // quote asset amount (alternative representation of price, better for swapping)
+}
+
+struct BestPrices {
+    Order bid;
+    Order ask;
+}
+
+// Limitation: For now, we store just best bid and best ask on-chain (for each token)
 contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     address public immutable ATTESTATION_CENTER;
 
-    mapping(address=>BestPrices) public bestBids;
-    mapping(address=>BestPrices) public bestAsks;
-
-    constructor(address _attestationCenterAddress, IPoolManager _poolManager) BaseHook(_poolManager) {
-        ATTESTATION_CENTER = _attestationCenterAddress;
-    }
-
-
-
-
-
-
-
-
-
-
-
-    // Hook Logic:
-    // For now, we store 3 best bids and 3 best asks on-chain (for each token)
-    // Need function to replace one of these best prices (task function)
-    // Need function to settle, i.e. swap (usr1, amt1, tok1) with (usr2, amt2, tok2) and replace one of the best prices
-
-
-
-    // ============== Hook Logic OLD FUNCTIONS ==============
-
-    struct Order {
-        uint256 orderId;
-        address account;
-        uint256 sqrtPrice; // sqrt price used because it's cheaper to store (noteredundant as we have quote asset amount)
-        uint256 amount; // base asset amount
-        bool isBid; // bid is buying, ask is selling
-        address baseAsset; // WETH in WETH/USDC
-        address quoteAsset; // USDC in WETH/USDC
-        uint256 quoteAmount; // quote asset amount (alternative representation of price, better for swapping)
-    }
-
-    struct BestPrices {
-        Order bid;
-        Order ask;
-    }
-
     mapping(address => mapping(address => uint256)) public escrowedFunds; // maker => token => amount
+
     // mapping(address => mapping(bool => Order)) public bestBidAndAsk; // token => isBid => Order
     mapping(address => mapping(address => BestPrices)) public bestBidAndAsk; // baseAsset => quoteAsset => BestPrices
 
@@ -67,7 +43,13 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
     event FillOrder(uint256 indexed orderId, address indexed taker, uint256 sqrtPrice, uint256 amount);
 
-    event CancelOrder(uint256 indexed orderId, address indexed maker);
+    event Swap(
+        address indexed account1, address indexed asset1, uint256 amount1,
+        address indexed account2, address indexed asset2, uint256 amount2
+    )
+
+    // event CancelOrder(uint256 indexed orderId, address indexed maker);
+    event WithdrawalProcessed(address indexed account, address indexed asset, uint256 amount);
 
     error OnlyAttestationCenter();
 
@@ -80,6 +62,12 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     error DirectWithdrawalDisabled();
 
     error EscrowBalanceMismatch();
+
+    constructor(address _attestationCenterAddress, IPoolManager _poolManager) BaseHook(_poolManager) {
+        ATTESTATION_CENTER = _attestationCenterAddress;
+    }
+
+    // ============== Something ==============
 
     function escrowFunds(address maker, address token, uint256 amount) external {
         uint256 allowed = IERC20(token).allowance(maker, address(this));
@@ -128,42 +116,150 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         address asset2,
         uint256 amount2
     ) private {
-        // Checks
-        uint256 escrow1 = escrowedFunds[account1][asset1];
-        uint256 escrow2 = escrowedFunds[account2][asset2];
+        mapping(address => uint256) storage accountEscrow1 = escrowedFunds[account1];
+        mapping(address => uint256) storage accountEscrow2 = escrowedFunds[account2];
 
-        if (escrowedFunds[account1][asset1] < amount1 || escrowedFunds[account2][asset2] < amount2)
+        // Checks
+        if (accountEscrow1[asset1] < amount1 || accountEscrow2[asset2] < amount2)
             revert EscrowBalanceMismatch();
 
-        // Account 1 transfers <amount 1> of <asset 1> to Account 2
-        // TODO
+        // Asset 1: Account 1 transfers <amount 1> of <asset 1> to Account 2
+        accountEscrow1[asset1] -= amount1;
+        accountEscrow2[asset1] += amount1;
 
-        // Account 2 transfers <amount 2> of <asset 2> to Account 1
+        // Asset 2: Account 2 transfers <amount 2> of <asset 2> to Account 1
+        accountEscrow2[asset2] -= amount2;
+        accountEscrow1[asset2] += amount2;
 
+        emit Swap(
+            account1, asset1, amount1,
+            account2, asset2, amount2
+        );
     }
-
-
-
-
 
     function extractOrder(
-        IAttestationCenter.TaskInfo calldata _taskInfo,
+        bytes calldata taskData,
         uint256 startIdx
-    ) returns (Order memory, uint256) {
+    ) view returns (Order memory, uint256) {
         Order memory order = Order({
-            orderId: uint256(bytes32(_taskInfo.data[startIdx + 0 : startIdx + 32])),
-            account: address(uint160(uint256(bytes32(_taskInfo.data[startIdx + 32 : startIdx + 52])))),
-            sqrtPrice: uint256(bytes32(_taskInfo.data[startIdx + 52 : startIdx + 84])),
-            amount: uint256(bytes32(_taskInfo.data[startIdx + 84 : startIdx + 116])),
-            isBid: uint8(_taskInfo.data[startIdx + 116]) == 1,
-            baseAsset: address(uint160(uint256(bytes32(_taskInfo.data[startIdx + 117 : startIdx + 137])))),
-            quoteAsset: address(uint160(uint256(bytes32(_taskInfo.data[startIdx + 137 : startIdx + 157])))),
-            quoteAmount: uint256(bytes32(_taskInfo.data[startIdx + 137 : startIdx + 169]))
+            orderId: uint256(bytes32(taskData[startIdx + 0 : startIdx + 32])),
+            account: address(uint160(uint256(bytes32(taskData[startIdx + 32 : startIdx + 52])))),
+            sqrtPrice: uint256(bytes32(taskData[startIdx + 52 : startIdx + 84])),
+            amount: uint256(bytes32(taskData[startIdx + 84 : startIdx + 116])),
+            isBid: uint8(taskData[startIdx + 116]) == 1,
+            baseAsset: address(uint160(uint256(bytes32(taskData[startIdx + 117 : startIdx + 137])))),
+            quoteAsset: address(uint160(uint256(bytes32(taskData[startIdx + 137 : startIdx + 157])))),
+            quoteAmount: uint256(bytes32(taskData[startIdx + 137 : startIdx + 169]))
         });
 
-        return (order, startIdx + 157);
+        return (order, startIdx + 169);
     }
 
+    function extractWithdrawalData(
+        bytes calldata taskData
+    ) view returns (address, address, uint256) {
+        address account = address(uint160(uint256(bytes32(taskData[0 : 20]))));
+        uint256 asset = address(uint160(uint256(bytes32(taskData[20 : 40]))));
+        uint256 amount = uint256(bytes32(taskData[40 : 72]));
+        return (account, asset, amount);
+    }
+
+    function taskUpdateBest(bytes calldata taskData) private {
+        // Parse the bytes data into structured data
+        (Order memory order, uint256 lastIndex) = extractOrder(taskData, 0);
+
+        // Get current best bid and ask
+        BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
+
+        if (order.isBid) bestPrices.bid = order;
+        else bestPrices.ask = order;
+        
+        emit UpdateBestOrder(
+            order.orderId,
+            order.account,
+            order.sqrtPrice,
+            order.amount
+        );
+    }
+
+    function taskFillOrder(bytes calldata taskData) private {
+        // Parse the bytes data into structured data
+        (Order memory order, uint256 lastIndex) = extractOrder(taskData, 0);
+
+        // Get current best bid and ask
+        BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
+
+        Order storage counterpartyOrder = (order.isBid) ? bestPrices.ask : bestPrices.bid;
+
+        // Settle orders for full amount of incoming order and partial/full amount of best price order
+        if (order.isBid) {
+            // Incoming order is buyer, so they send quote asset and receive base asset
+            swapBalances(
+                order.account, order.quoteAsset, order.quoteAmount,
+                counterpartyOrder.account, order.baseAsset, order.amount
+            );
+        } else {
+            // Incoming order is seller, so they send base asset and receive quote asset
+            swapBalances(
+                order.account, order.baseAsset, order.amount,
+                counterpartyOrder.account, order.quoteAsset, order.quoteAmount
+            );
+        }
+
+        // Update best order
+        if (counterpartyOrder.amount < order.amount) {
+            // For now, only partially/fully filling best bid/ask
+            revert OrderTooLarge();
+        } else if (counterpartyOrder.amount > order.amount) {
+            // Partial fill
+
+            // This is the amount that will be remaining of the best order once partially filled
+            uint256 amountRemaining = counterpartyOrder.amount - order.amount;
+            uint256 quoteAmountRemaining = counterPartOrder.quoteAmount - order.quoteAmount;
+
+            // Update best price order by reducing amounts of existing best order
+            counterpartyOrder.amount = amountRemaining;
+            counterpartyOrder.quoteAmount = quoteAmountRemaining;
+
+            emit UpdateBestOrder(
+                order.orderId,
+                order.account,
+                order.sqrtPrice,
+                amountRemaining
+            );
+
+        } else {
+            // Complete fill (counterpartyOrder.amount == order.amount)
+
+            // Update best price with next best order (passed in by AVS)
+            Order memory newBest = extractOrder(taskData, lastIdx);
+
+            emit UpdateBestOrder(
+                newBest.orderId,
+                newBest.account,
+                newBest.sqrtPrice,
+                newBest.amount
+            );
+        }
+    }
+
+    function taskProcessWithdrawal(bytes calldata taskData) {
+        (address account, address asset, uint256 amount) = extractWithdrawalData(taskData);
+        mapping(address => amount) storage accountEscrow = escrowedFunds[account];
+
+        // Checks
+        if (accountEscrow[asset] < amount) revert EscrowBalanceMismatch();
+
+        // Modify escrow balance
+        accountEscrow[asset] -= amount;
+        
+        // Transfer funds to user
+        bool success = IERC20(asset).transfer(account, amount);
+
+        if (!success) revert UnsuccessfulTransfer();
+
+        emit WithdrawalProcessed(account, asset, amount);
+    }
 
     /**
      * There are 3 kinds of tasks:
@@ -183,104 +279,16 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     ) external {
         if (msg.sender != address(ATTESTATION_CENTER)) revert OnlyAttestationCenter();
 
-        // Parse the bytes data into structured data
-        (Order memory order, uint256 lastIndex) = extractOrder(_taskInfo, 0);
-
-        // Get current best bid and ask
-        BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
-
-        if (_taskInfo.taskDefinitionId == 0) {
-            // UpdateBest - AVS knows this is the best price already, no checks needed
-
-            if (order.isBid) bestPrices.bid = order;
-            else bestPrices.ask = order;
-            
-            emit UpdateBestOrder(
-                order.orderId,
-                order.account,
-                order.sqrtPrice,
-                order.amount
-            );
-        } else if (_taskInfo.taskDefinitionId == 1) {
-            // FillOrder - for now, assuming we are fully/partially filling the best bid/ask
-
-            Order storage counterpartyOrder = (order.isBid) ? bestPrices.ask : bestPrices.bid;
-
-            if (counterpartyOrder.amount < order.amount) {
-                // For now, only partially/fully filling best bid/ask
-                revert OrderTooLarge();
-            } else if (counterpartyOrder.amount > order.amount) {
-                // Partial fill
-
-                // This is the amount that will be remaining of the best order once partially filled
-                uint256 amountRemaining = counterpartyOrder.amount - order.amount;
-                uint256 quoteAmountRemaining = counterPartOrder.quoteAmount - order.quoteAmount;
-
-                // Update best price order
-                counterpartyOrder.amount = amountRemaining;
-                counterpartyOrder.quoteAmount = quoteAmountRemaining;
-
-                emit UpdateBestOrder(
-                    order.orderId,
-                    order.account,
-                    order.sqrtPrice,
-                    amountRemaining
-                );
-
-                // Now, settle orders for full amount of incoming order and partial amount of best price order
-                if (order.isBid) {
-                    // Incoming order is buyer, so they send quote asset and receive base asset
-                    swapBalances(
-                        order.account, order.quoteAsset, order.quoteAmount,
-                        counterpartyOrder.account, counterpartyOrder.baseAsset, counterpartyOrder.amount
-                    );
-                } else {
-                    // Incoming order is seller, so they send base asset and receive quote asset
-                    swapBalances(
-                        order.account, order.baseAsset, order.amount,
-                        counterpartyOrder.account, counterpartyOrder.quoteAsset, counterpartyOrder.quoteAmount
-                    );
-                }
-            } else { // counterpartyOrder.amount == order.amount
-                // Complete fill
-
-                // TODO
-            }
-
-            // Settle - swap maker and takers funds
-
-            // Update best price
-
-            if () {
-                // Case: Partial fill (reduce amount of best price)
-            } else if () {
-                // Case: Complete fill (replace best price with next order in book)
-                Order memory newBest = extractOrder(_taskInfo, lastIdx);
-                // ...
-            } else {
-                // Invalid (only accepting orders that fill best for now)
-            }
-
-
-        } else if (_taskInfo.taskDefinitionId == 3) { // CancelOrder
-            // release the funds
-            if (order.isBid) {
-                this.releaseFunds(order.account, order.token1, order.amount);
-            } else {
-                this.releaseFunds(order.account, order.token0, order.amount);
-            }
-
-            emit CancelOrder(
-                order.orderId,
-                order.account
-            );
-        } else {
-            revert InvalidTaskDefinitionId();
-        }
-
+        // UpdateBest - AVS knows this is the best price already, no checks needed
+        if (_taskInfo.taskDefinitionId == 0) taskUpdateBest(_taskInfo.data);
+        // FillOrder - for now, assuming we are fully/partially filling the best bid/ask
+        else if (_taskInfo.taskDefinitionId == 1) taskFillOrder(_taskInfo.data);
+        // ProcessWithdrawal - AVS triggers user withdrawal
+        else if (_taskInfo.taskDefinitionId == 2) taskProcessWithdrawal(_taskInfo.data);
+        else revert InvalidTaskDefinitionId();
     }
 
-    // ============== Hook Functions for Uniswap ==============
+    // ============== Unused AVS Functions ==============
 
     function beforeTaskSubmission(
         IAttestationCenter.TaskInfo calldata _taskInfo,
@@ -289,6 +297,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         uint256[2] calldata _taSignature,
         uint256[] calldata _attestersIds
     ) external {}
+
+    // ============== Hook Functions for Uniswap ==============
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
