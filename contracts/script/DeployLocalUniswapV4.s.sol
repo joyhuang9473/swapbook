@@ -12,12 +12,13 @@ import {PoolClaimsTest} from "v4-core/src/test/PoolClaimsTest.sol";
 import "forge-std/console.sol";
 
 contract DeployLocalUniswapV4 is Script {
-    function run(address owner) public {
+    function run(address owner) public returns (address) {
         vm.startBroadcast();
 
         PoolManager manager = new PoolManager(owner);
         console.log("Deployed PoolManager at", address(manager));
 
         vm.stopBroadcast();
+        return address(manager);
     }
 }
