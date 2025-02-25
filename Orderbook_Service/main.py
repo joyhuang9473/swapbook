@@ -119,5 +119,44 @@ def get_orderbook(payload: str = Form(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/get_best_order")
+def get_best_order(payload: str = Form(...)):
+    try:
+        payload_json = json.loads(payload)
+        symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
+        side = payload_json['side']
+
+        if symbol not in order_books:
+            raise HTTPException(status_code=404, detail="Order book not found")
+
+        order_book = order_books[symbol]
+
+        if side == 'bid':
+            price = order_book.get_best_bid()
+            price_list = order_book.bids.price_map[price]
+        else:
+            price = order_book.get_best_ask()
+            price_list = order_book.asks.price_map[price]
+
+        current_order = price_list.head_order
+
+        order_dict = {
+            'order_id': int(current_order['order_id']),
+            'account': current_order['account'],
+            'price': float(current_order['price']),
+            'quantity': float(current_order['quantity']),
+            'side': current_order['side'],
+            'baseAsset': current_order['baseAsset'],
+            'quoteAsset': current_order['quoteAsset'],
+            'trade_id': current_order['trade_id'],
+        }
+
+        return JSONResponse(content={
+            "message": "Best order retrieved successfully",
+            "order": order_dict
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

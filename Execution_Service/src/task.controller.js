@@ -10,6 +10,7 @@ const taskDefinitionId = {
 
     // internal task: start from 10000
     INTERNAL_CancelOrder: 10000,
+    INTERNAL_CreateOrder: 10001,
 }
 
 const decimal = 18;
@@ -91,6 +92,29 @@ async function generateOrderBook(symbol) {
     return data;
 }
 
+async function getBestOrder(baseAsset, quoteAsset, side) {
+    // Create form data
+    const formData = new FormData();
+    formData.append('payload', JSON.stringify({
+        side: side,
+        baseAsset: baseAsset,
+        quoteAsset: quoteAsset
+    }));
+
+    const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/get_best_order`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to cancel order: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+}
+
 async function sendTask(data) {
     const order = {
         orderId: data['order']['order_id'],
@@ -117,14 +141,48 @@ async function sendCancelOrderTask(data) {
     return result;
 }
 
+async function sendCreateOrderTask(data) {
+    const order = {
+        orderId: data['order']['order_id'],
+        account: data['order']['account'],
+        sqrtPrice: ethers.parseUnits(Math.sqrt(data['order']['price']).toString(), decimal),
+        amount: ethers.parseUnits(data['order']['quantity'].toString(), decimal),
+        isBid: data['order']['side'] === 'bid',
+        baseAsset: token_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
+        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
+    }
+    const result = await dalService.sendCreateOrderTask(order.orderId.toString(), order, taskDefinitionId.INTERNAL_CreateOrder);
+    return result;
+}
+
+async function sendFillOrderTask(data) {
+    const order = {
+        orderId: data['order']['order_id'],
+        account: data['order']['account'],
+        sqrtPrice: ethers.parseUnits(Math.sqrt(data['order']['price']).toString(), decimal),
+        amount: ethers.parseUnits(data['order']['quantity'].toString(), decimal),
+        isBid: data['order']['side'] === 'bid',
+        baseAsset: token_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
+        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
+    }
+    const result = await dalService.sendFillOrderTask(order.orderId.toString(), order, taskDefinitionId.FillOrder);
+    return result;
+}
+
 module.exports = {
     generateOrderBook,
 
     taskDefinitionId,
     
     createOrder,
+    sendCreateOrderTask,
+    sendFillOrderTask,
     sendTask,
     
     cancelOrder,
-    sendCancelOrderTask
+    sendCancelOrderTask,
+    
+    getBestOrder,
 };

@@ -11,12 +11,34 @@ router.post("/limitOrder", async (req, res) => {
     
     try {
         const data = await taskController.createOrder(account, price, quantity, side, baseAsset, quoteAsset);
-        const result = await taskController.sendTask(data);
+        var result = await taskController.sendCreateOrderTask(data);
+
+        // check if the order is filled
+        if (data['trades'] && data['trades'].length > 0) {
+            var fillOrderData = JSON.parse(JSON.stringify(data)); // Create a deep copy
+
+            for (const trade of fillOrderData['trades']) {
+                // trade: {'timestamp': 2, 'price': 50000.0, 'quantity': 1.0, 'time': 2, 'party1': ['0x1234567890123456789012345678901234567891', 'ask', 1, None], 'party2': ['0x1234567890123456789012345678901234567890', 'bid', None, None]}
+                // party: [trade_id, side, head_order.order_id, new_book_quantity]
+                fillOrderData['order']['quantity'] = trade['quantity'];
+
+                result = await taskController.sendFillOrderTask(fillOrderData);
+
+                if (!result) {
+                    return res.status(500).send(new CustomError("sendFillOrderTask went wrong", {}));
+                }
+            }
+
+            // update the best price
+            const opposite_side = side === 'bid' ? 'ask' : 'bid';
+            const _data = await taskController.getBestOrder(baseAsset, quoteAsset, opposite_side);
+            result = await taskController.sendTask(_data);
+        }
 
         if (result) {
             return res.status(200).send(new CustomResponse(data));
         } else {
-            return res.status(500).send(new CustomError("Something went wrong", {}));
+            return res.status(500).send(new CustomError("sendUpdateBestTask went wrong", {}));
         }
     } catch (error) {
         console.log(error)

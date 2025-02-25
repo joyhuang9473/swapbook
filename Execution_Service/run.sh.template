@@ -23,3 +23,15 @@ curl -X POST http://localhost:4003/api/cancelOrder \
     "baseAsset": "WBTC",
     "quoteAsset": "USDC"
 }'
+
+# Submitting a limit order that crosses the opposing best price will result in a trade
+curl -X POST http://localhost:4003/api/limitOrder \
+-H "Content-Type: application/json" \
+-d '{
+    "account": "0x1234567890123456789012345678901234567891",
+    "price": 50000,
+    "quantity": 1,
+    "side": "ask",
+    "baseAsset": "WBTC",
+    "quoteAsset": "USDC"
+}'
