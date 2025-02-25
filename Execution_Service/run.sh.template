@@ -14,3 +14,12 @@ curl -X POST http://localhost:4003/api/orderBook \
 -d '{
     "symbol": "WBTC_USDC"
 }'
+
+curl -X POST http://localhost:4003/api/cancelOrder \
+-H "Content-Type: application/json" \
+-d '{
+    "orderId": 1,
+    "side": "bid",
+    "baseAsset": "WBTC",
+    "quoteAsset": "USDC"
+}'

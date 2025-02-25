@@ -52,6 +52,23 @@ def register_order(payload: str = Form(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/cancel_order")
+def cancel_order(payload: str = Form(...)):
+    try:
+        payload_json = json.loads(payload)
+        order_id = payload_json['orderId']
+        side = payload_json['side']
+        symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
+
+        order_book = order_books[symbol]
+        order_book.cancel_order(side, order_id)
+
+        return JSONResponse(content={
+            "message": "Order cancelled successfully"
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/orderbook")
 def get_orderbook(payload: str = Form(...)):
     try:

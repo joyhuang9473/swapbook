@@ -14,7 +14,24 @@ router.post("/limitOrder", async (req, res) => {
         const result = await taskController.sendTask(data);
 
         if (result) {
-            return res.status(200).send(new CustomResponse(result));
+            return res.status(200).send(new CustomResponse(data));
+        } else {
+            return res.status(500).send(new CustomError("Something went wrong", {}));
+        }
+    } catch (error) {
+        console.log(error)
+        return res.status(500).send(new CustomError("Something went wrong", {}));
+    }
+});
+
+router.post("/cancelOrder", async (req, res) => {
+    const { orderId, side, baseAsset, quoteAsset } = req.body;
+    try {
+        const data = await taskController.cancelOrder(orderId, side, baseAsset, quoteAsset);
+        const result = data["message"] !== "Order cancelled successfully" ? false : true;        
+
+        if (result) {
+            return res.status(200).send(new CustomResponse(data));
         } else {
             return res.status(500).send(new CustomError("Something went wrong", {}));
         }
