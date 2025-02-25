@@ -3,10 +3,10 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.responses import JSONResponse
 import json
 import uvicorn
+from decimal import Decimal
 
 order_books = {}  # Dictionary to store multiple order books, keyed by symbol
 app = FastAPI()
-app.counter = 0
 
 @app.post("/api/register_order")
 def register_order(payload: str = Form(...)):
@@ -21,20 +21,45 @@ def register_order(payload: str = Form(...)):
 
         _order = {
             'type' : 'limit',
-            'trade_id' : app.counter,
+            'trade_id' : payload_json['account'],
             'account': payload_json['account'],
-            'price' : payload_json['price'],
-            'quantity' : payload_json['quantity'],
+            'price' : Decimal(payload_json['price']),
+            'quantity' : Decimal(payload_json['quantity']),
             'side' : payload_json['side'],
             'baseAsset' : payload_json['baseAsset'],
             'quoteAsset' : payload_json['quoteAsset']
         }
         trades, order = order_book.process_order(_order, False, False)
-        app.counter += 1
+
+        converted_trades = []
+        for trade in trades:
+            # [trade_id, side, head_order.order_id, new_book_quantity]
+            party1 = [
+                trade['party1'][0],
+                trade['party1'][1],
+                int(trade['party1'][2]) if trade['party1'][2] is not None else None,
+                float(trade['party1'][3]) if trade['party1'][3] is not None else None
+            ]
+            party2 = [
+                trade['party2'][0],
+                trade['party2'][1],
+                int(trade['party2'][2]) if trade['party2'][2] is not None else None,
+                float(trade['party2'][3]) if trade['party2'][3] is not None else None
+            ]
+
+            converted_trade = {
+                'timestamp': int(trade['timestamp']),
+                'price': float(trade['price']),
+                'quantity': float(trade['quantity']),
+                'time': int(trade['time']),
+                'party1': party1,
+                'party2': party2,
+            }
+            converted_trades.append(converted_trade)
 
         # Convert order to a serializable format
         order_dict = {
-            'order_id': int(order['order_id']),
+            'order_id': int(order['order_id']) if order is not None else None,
             'account': order['account'],
             'price': float(order['price']),
             'quantity': float(order['quantity']),
@@ -42,7 +67,8 @@ def register_order(payload: str = Form(...)):
             'baseAsset': order['baseAsset'],
             'quoteAsset': order['quoteAsset'],
             # 'type': order['type'],
-            # 'trade_id': int(order['trade_id']),
+            'trade_id': order['trade_id'],
+            'trades': converted_trades
         }
 
         return JSONResponse(content={
