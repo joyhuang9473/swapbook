@@ -17,7 +17,7 @@ $$    $$/   $$  $$/ $$ |  $$ |$$       |$$ |  $$ |  $$  $$/ $$ |$$       |
  */
 import {Script, console} from "forge-std/Script.sol";
 import {IAttestationCenter} from "../src/interfaces/IAttestationCenter.sol";
-import {DynamicFeesAvsHook} from "../src/DynamicFeesAvsHook.sol";
+import {P2POrderBookAvsHook} from "../src/P2POrderBookAvsHook.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "v4-periphery/src/utils/HookMiner.sol";
@@ -35,17 +35,17 @@ contract DeployAvsHook is Script {
         // https://book.getfoundry.sh/guides/deterministic-deployments-using-create2?highlight=CREATE2_DEPLOY#deterministic-deployments-using-create2
         address CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-        uint160 flags = uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG);
+        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG);
         bytes memory constructorArgs = abi.encode(attestationCenter, IPoolManager(poolManager));
 
         (address hookAddress, bytes32 salt) =
-            HookMiner.find(CREATE2_DEPLOYER, flags, type(DynamicFeesAvsHook).creationCode, constructorArgs);
+            HookMiner.find(CREATE2_DEPLOYER, flags, type(P2POrderBookAvsHook).creationCode, constructorArgs);
 
         console.log("Mined hook address:", hookAddress);
         console.log("Salt:", vm.toString(salt));
 
         vm.startBroadcast();
-        DynamicFeesAvsHook avsHook = new DynamicFeesAvsHook{salt: salt}(attestationCenter, IPoolManager(poolManager));
+        P2POrderBookAvsHook avsHook = new P2POrderBookAvsHook{salt: salt}(attestationCenter, IPoolManager(poolManager));
 
         require(address(avsHook) == hookAddress, "Hook address mismatch");
 
