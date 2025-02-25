@@ -44,14 +44,16 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     event FillOrder(uint256 indexed orderId, address indexed taker, uint256 sqrtPrice, uint256 amount);
 
     event Swap(
-        address indexed account1, address indexed asset1, uint256 amount1,
-        address indexed account2, address indexed asset2, uint256 amount2
-    )
+        address account1, address indexed asset1, uint256 amount1,
+        address account2, address indexed asset2, uint256 amount2
+    );
 
     error InsufficientAllowance();
 
     // event CancelOrder(uint256 indexed orderId, address indexed maker);
     event WithdrawalProcessed(address indexed account, address indexed asset, uint256 amount);
+
+    error TaskNotApproved();
 
     error OnlyAttestationCenter();
 
@@ -73,7 +75,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
     function escrow(address asset, uint256 amount) external {
         // Check allowance
-        uint256 allowance = IERC20(token).allowance(msg.sender, address(this));
+        uint256 allowance = IERC20(asset).allowance(msg.sender, address(this));
         if (allowance < amount) revert InsufficientAllowance();
 
         // Transfer into contract
@@ -89,7 +91,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         escrowedFunds[msg.sender][asset] += amount;
     }
 
-    function withdraw(address asset, uint256 amount) external {
+    // function withdraw(address asset, uint256 amount) external {}
+    function withdraw(address, uint256) external pure {
         // TODO: can only be done by user a week after depositing, perhaps subject to other restrictions to prevent sneaky withdrawals
         revert DirectWithdrawalDisabled();
     }
@@ -128,7 +131,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     function extractOrder(
         bytes calldata taskData,
         uint256 startIdx
-    ) view returns (Order memory, uint256) {
+    ) pure private returns (Order memory, uint256) {
         Order memory order = Order({
             orderId: uint256(bytes32(taskData[startIdx + 0 : startIdx + 32])),
             account: address(uint160(uint256(bytes32(taskData[startIdx + 32 : startIdx + 52])))),
@@ -145,9 +148,9 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
     function extractWithdrawalData(
         bytes calldata taskData
-    ) view returns (address, address, uint256) {
+    ) pure private returns (address, address, uint256) {
         address account = address(uint160(uint256(bytes32(taskData[0 : 20]))));
-        uint256 asset = address(uint160(uint256(bytes32(taskData[20 : 40]))));
+        address asset = address(uint160(uint256(bytes32(taskData[20 : 40]))));
         uint256 amount = uint256(bytes32(taskData[40 : 72]));
         return (account, asset, amount);
     }
@@ -156,7 +159,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
     function taskUpdateBest(bytes calldata taskData) private {
         // Parse the bytes data into structured data
-        (Order memory order, uint256 lastIndex) = extractOrder(taskData, 0);
+        (Order memory order,) = extractOrder(taskData, 0);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -174,7 +177,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
     function taskFillOrder(bytes calldata taskData) private {
         // Parse the bytes data into structured data
-        (Order memory order, uint256 lastIndex) = extractOrder(taskData, 0);
+        (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -205,7 +208,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
             // This is the amount that will be remaining of the best order once partially filled
             uint256 amountRemaining = counterpartyOrder.amount - order.amount;
-            uint256 quoteAmountRemaining = counterPartOrder.quoteAmount - order.quoteAmount;
+            uint256 quoteAmountRemaining = counterpartyOrder.quoteAmount - order.quoteAmount;
 
             // Update best price order by reducing amounts of existing best order
             counterpartyOrder.amount = amountRemaining;
@@ -222,7 +225,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             // Complete fill (counterpartyOrder.amount == order.amount)
 
             // Update best price with next best order (passed in by AVS)
-            Order memory newBest = extractOrder(taskData, lastIdx);
+            (Order memory newBest,) = extractOrder(taskData, lastIdx);
 
             emit UpdateBestOrder(
                 newBest.orderId,
@@ -233,9 +236,9 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         }
     }
 
-    function taskProcessWithdrawal(bytes calldata taskData) {
+    function taskProcessWithdrawal(bytes calldata taskData) private {
         (address account, address asset, uint256 amount) = extractWithdrawalData(taskData);
-        mapping(address => amount) storage accountEscrow = escrowedFunds[account];
+        mapping(address => uint256) storage accountEscrow = escrowedFunds[account];
 
         // Checks
         if (accountEscrow[asset] < amount) revert EscrowBalanceMismatch();
@@ -267,6 +270,10 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         uint256[2] calldata, /* _taSignature */
         uint256[] calldata /* _operatorIds */
     ) external {
+        // TODO: Look into how to use this? For now just this.
+        if (!_isApproved) revert TaskNotApproved();
+
+        // Only AVS
         if (msg.sender != address(ATTESTATION_CENTER)) revert OnlyAttestationCenter();
 
         // UpdateBest - AVS knows this is the best price already, no checks needed
@@ -310,7 +317,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     }
 
     // TODO: or maybe _afterSwap
-    function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
+    // function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata) {}
+    function _beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
         internal
         virtual
         override
@@ -324,9 +332,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
 
 
-
-
-
+// Code for unused Swap struct system (instead of Order struct):
 
 // struct Order {
 //     address user;
