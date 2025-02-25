@@ -63,8 +63,17 @@ def cancel_order(payload: str = Form(...)):
         order_book = order_books[symbol]
         order_book.cancel_order(side, order_id)
 
+        # Convert order to a serializable format
+        order_dict = {
+            'order_id': int(order['order_id']),
+            'side': order['side'],
+            'baseAsset': order['baseAsset'],
+            'quoteAsset': order['quoteAsset'],
+        }
+
         return JSONResponse(content={
-            "message": "Order cancelled successfully"
+            "message": "Order cancelled successfully",
+            "order": order_dict
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
