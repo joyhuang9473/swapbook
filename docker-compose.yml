@@ -93,6 +93,7 @@ services:
     environment:
       - OTHENTIC_CLIENT_RPC_ADDRESS=http://10.8.0.69:8545
       - PRIVATE_KEY=${PRIVATE_KEY_PERFORMER}
+      - ORDERBOOK_SERVICE_ADDRESS=http://10.8.0.201:8000
     env_file:
       - .env
     ports:
@@ -130,6 +131,16 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
       - grafana-storage:/var/lib/grafana
+
+  orderbook-execution-service:
+    build:
+      context: ./Orderbook_Service
+      dockerfile: ./Dockerfile
+    ports:
+      - "8000:8000"
+    networks:
+      p2p:
+        ipv4_address: 10.8.0.201
 
 volumes:
   grafana-storage: {}

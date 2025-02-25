@@ -7,10 +7,10 @@ const CustomResponse = require("./utils/validateResponse");
 const router = Router();
 
 router.post("/limitOrder", async (req, res) => {
-    const { symbol, side, quantity, price } = req.body;
+    const { account, price, quantity, side, baseAsset, quoteAsset } = req.body;
     
     try {
-        const result = await taskController.createOrder(symbol, side, quantity, price);
+        const result = await taskController.createOrder(account, price, quantity, side, baseAsset, quoteAsset);
         return res.status(200).send(new CustomResponse(result));
     } catch (error) {
         console.log(error)
