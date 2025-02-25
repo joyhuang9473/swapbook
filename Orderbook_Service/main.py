@@ -29,9 +29,18 @@ def register_order(payload: str = Form(...)):
         trades, order = order_book.process_order(_order, False, False)
         app.counter += 1
 
+        # Convert order to a serializable format
+        order_dict = {
+            'type': order['type'],
+            'side': order['side'],
+            'quantity': float(order['quantity']),
+            'price': float(order['price']),
+            'trade_id': int(order['trade_id'])
+        }
+
         return JSONResponse(content={
             "message": "Order registered successfully",
-            "order_id": order['order_id']
+            "order": order_dict
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
