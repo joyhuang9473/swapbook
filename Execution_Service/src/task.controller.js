@@ -1,5 +1,7 @@
 "use strict";
 require("dotenv").config();
+const dalService = require("./dal.service.js");
+const { ethers } = require("ethers");
 
 const taskDefinitionId = {
     UpdateBest: 0,
@@ -62,4 +64,19 @@ async function generateOrderBook(symbol) {
     return data;
 }
 
-module.exports = { generateOrderBook, createOrder };
+async function sendTask(data) {
+    const order = {
+        orderId: data['order']['order_id'],
+        account: data['order']['account'],
+        sqrtPrice: ethers.parseUnits(Math.sqrt(data['order']['price']).toString(), decimal),
+        amount: ethers.parseUnits(data['order']['quantity'].toString(), decimal),
+        isBid: data['order']['side'] === 'bid',
+        baseAsset: token_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
+        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
+    }
+    const result = await dalService.sendTask(order.orderId.toString(), order, taskDefinitionId.UpdateBest);
+    return result;
+}
+
+module.exports = { generateOrderBook, createOrder, sendTask};
