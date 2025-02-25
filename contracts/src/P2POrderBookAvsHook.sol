@@ -48,6 +48,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         address indexed account2, address indexed asset2, uint256 amount2
     )
 
+    error InsufficientAllowance();
+
     // event CancelOrder(uint256 indexed orderId, address indexed maker);
     event WithdrawalProcessed(address indexed account, address indexed asset, uint256 amount);
 
@@ -67,29 +69,13 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         ATTESTATION_CENTER = _attestationCenterAddress;
     }
 
-    // ============== Something ==============
-
-    function escrowFunds(address maker, address token, uint256 amount) external {
-        uint256 allowed = IERC20(token).allowance(maker, address(this));
-        require(allowed >= amount, "Insufficient allowance");
-        bool success = IERC20(token).transferFrom(maker, address(this), amount);
-        require(success, "Transfer failed");
-        // Record the escrowed funds
-        escrowedFunds[maker][token] += amount;
-    }
-
-    function releaseFunds(address maker, address token, uint256 amount) external {
-        // Add check for sufficient escrowed funds
-        require(escrowedFunds[maker][token] >= amount, "Insufficient escrowed funds");
-        bool success = IERC20(token).transfer(maker, amount);
-        require(success, "Transfer failed");
-        // Update the escrowed funds balance
-        escrowedFunds[maker][token] -= amount;
-    }
-
-    // ============== AVS OLD FUNCTIONS ==============
+    // ============== ESCROW MANAGEMENT ==============
 
     function escrow(address asset, uint256 amount) external {
+        // Check allowance
+        uint256 allowance = IERC20(token).allowance(msg.sender, address(this));
+        if (allowance < amount) revert InsufficientAllowance();
+
         // Transfer into contract
         bool success = IERC20(asset).transferFrom(
             address(this),
@@ -137,6 +123,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         );
     }
 
+    // ============== DATA PROCESSING HELPERS ==============
+
     function extractOrder(
         bytes calldata taskData,
         uint256 startIdx
@@ -163,6 +151,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         uint256 amount = uint256(bytes32(taskData[40 : 72]));
         return (account, asset, amount);
     }
+
+    // ============== TASK FUNCTIONS ==============
 
     function taskUpdateBest(bytes calldata taskData) private {
         // Parse the bytes data into structured data
@@ -288,7 +278,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         else revert InvalidTaskDefinitionId();
     }
 
-    // ============== Unused AVS Functions ==============
+    // ============== UNUSED FUNCTIONS ==============
 
     function beforeTaskSubmission(
         IAttestationCenter.TaskInfo calldata _taskInfo,
@@ -298,7 +288,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         uint256[] calldata _attestersIds
     ) external {}
 
-    // ============== Hook Functions for Uniswap ==============
+    // ============== HOOK FUNCTIONS FOR UNISWAP ==============
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
