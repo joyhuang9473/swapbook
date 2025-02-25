@@ -1,21 +1,21 @@
-require('dotenv').config();
-const axios = require("axios");
+// require('dotenv').config();
+// const axios = require("axios");
 
-var ipfsHost='';
+// var ipfsHost='';
 
-function init() {
-  ipfsHost = process.env.IPFS_HOST;
-}
+// function init() {
+//   ipfsHost = process.env.IPFS_HOST;
+// }
 
 
-async function getIPfsTask(cid) {
-    const { data } = await axios.get(ipfsHost + cid);
-    return {
-      fee: parseFloat(data.fee),
-    };
-  }  
+// async function getIPfsTask(cid) {
+//     const { data } = await axios.get(ipfsHost + cid);
+//     return {
+//       fee: parseFloat(data.fee),
+//     };
+//   }  
   
-module.exports = {
-  init,
-  getIPfsTask
-}
+// module.exports = {
+//   init,
+//   getIPfsTask
+// }
