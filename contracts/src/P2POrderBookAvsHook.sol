@@ -80,8 +80,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
         // Transfer into contract
         bool success = IERC20(asset).transferFrom(
-            address(this),
             msg.sender,
+            address(this),
             amount
         );
 
