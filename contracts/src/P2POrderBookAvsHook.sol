@@ -12,6 +12,7 @@ import {IAvsLogic} from "./interfaces/IAvsLogic.sol";
 import {IAttestationCenter} from "./interfaces/IAttestationCenter.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 struct Order {
     uint256 orderId;
@@ -31,6 +32,8 @@ struct BestPrices {
 
 // Limitation: For now, we store just best bid and best ask on-chain (for each token)
 contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
+    using Address for address payable;
+
     address public immutable ATTESTATION_CENTER;
 
     mapping(address => mapping(address => uint256)) public escrowedFunds; // maker => token => amount
