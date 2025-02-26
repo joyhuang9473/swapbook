@@ -1,0 +1,36 @@
+{
+  "network": {
+    "chainId": 80002,
+    "name": "Polygon Amoy Testnet"
+  },
+  "contracts": {
+    "P2P_ORDERBOOK_ADDRESS": "0x0000000000000000000000000000000000000000"
+  },
+  "tokens": {
+    "WBTC": {
+      "address": "0x832fbBCB6B4F4F6F97A05898B735edc4Fc6BF618",
+      "symbol": "WBTC",
+      "decimals": 18
+    },
+    "USDC": {
+      "address": "0xD834AEE46DDc4c7bBa4126396d0395B87B05c60c",
+      "symbol": "USDC",
+      "decimals": 6
+    }
+  },
+  "api": {
+    "baseUrl": {
+      "development": "http://localhost:8080",
+      "production": "/api"
+    },
+    "endpoints": {
+      "limitOrder": "/limitOrder",
+      "cancelOrder": "/cancelOrder",
+      "orderBook": "/orderBook",
+      "initiateWithdrawal": "/initiateWithdrawal"
+    }
+  },
+  "abi": {
+    "P2POrderBookABI": "src/utils/P2POrderBookABI.js"
+  }
+} 
