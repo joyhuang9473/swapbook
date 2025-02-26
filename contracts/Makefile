@@ -34,6 +34,36 @@ step2_token:
 	@forge script ./script/DeployToken.s.sol --broadcast \
 		--rpc-url $(L2_RPC) \
 		--private-key $(PRIVATE_KEY) \
-		-vvv \
+		-v \
 		--sig "run(address,address)" $(POOL_MANAGER_ADDRESS) $(AVS_HOOK_ADDRESS)
+	$(END_LOG)
+
+.PHONY: step3_transferTokenToTestUser
+step3_transferTokenToTestUser:
+	$(START_LOG)
+	@forge script ./script/DeployTransferTokenToTestUser.s.sol --broadcast \
+		--rpc-url $(L2_RPC) \
+		--private-key $(PRIVATE_KEY) \
+		-v \
+		--sig "run(address,address,address,address)" $(TOKENA_ADDRESS) $(TOKENB_ADDRESS) $(USER1_ADDRESS) $(USER2_ADDRESS)
+	$(END_LOG)
+
+.PHONY: step4_testUser1
+step4_testUser1:
+	$(START_LOG)
+	@forge script ./script/DeployTestUser1.s.sol --broadcast \
+		--rpc-url $(L2_RPC) \
+		--private-key $(USER1_PRIVATE_KEY) \
+		-v \
+		--sig "run(address,address,address)" $(TOKENA_ADDRESS) $(TOKENB_ADDRESS) $(AVS_HOOK_ADDRESS)
+	$(END_LOG)
+
+.PHONY: step5_testUser2
+step5_testUser2:
+	$(START_LOG)
+	@forge script ./script/DeployTestUser2.s.sol --broadcast \
+		--rpc-url $(L2_RPC) \
+		--private-key $(USER2_PRIVATE_KEY) \
+		-v \
+		--sig "run(address,address,address)" $(TOKENA_ADDRESS) $(TOKENB_ADDRESS) $(AVS_HOOK_ADDRESS)
 	$(END_LOG)
