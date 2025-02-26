@@ -4,21 +4,21 @@ const dalService = require("./dal.service.js");
 const { ethers } = require("ethers");
 
 const taskDefinitionId = {
-    UpdateBest: 0,
-    FillOrder: 1,
-    ProcessWithdrawal: 2,
-
-    // internal task: start from 10000
-    INTERNAL_CancelOrder: 10000,
-    INTERNAL_CreateOrder: 10001,
+    Origin: 0,
+    // new task: start from 1
+    UpdateBestPrice: 1,
+    FillOrder: 2,
+    ProcessWithdrawal: 3,
+    CancelOrder: 4,
+    CreateOrder: 5,
 }
 
 const decimal = 18;
 
 // TODO: hard code for now
 const token_address_mapping = {
-    'WBTC': '0x832fbBCB6B4F4F6F97A05898B735edc4Fc6BF618',
-    'USDC': '0xD834AEE46DDc4c7bBa4126396d0395B87B05c60c',
+    'WBTC': '0x992e666e0dF32905EBF7893Aeca26e2C1De0427d',
+    'USDC': '0x45FCE027B6e797f5E8be35D49F33a918D77761f1',
 }
 
 async function createOrder(account, price, quantity, side, baseAsset, quoteAsset) {
@@ -43,7 +43,10 @@ async function createOrder(account, price, quantity, side, baseAsset, quoteAsset
         throw new Error(errorData.error || `Failed to create order: ${response.status}`);
     }
 
-    const data = await response.json();
+    let data = await response.json();
+    if (data['order']['order_id'] === null) {
+        data['order']['order_id'] = 1234567890;
+    }
     return data;
 }
 
@@ -115,7 +118,7 @@ async function getBestOrder(baseAsset, quoteAsset, side) {
     return data;
 }
 
-async function sendUpdateBestTask(data) {
+async function sendUpdateBestPriceTask(data) {
     const order = {
         orderId: data['order']['order_id'],
         account: data['order']['account'],
@@ -126,7 +129,7 @@ async function sendUpdateBestTask(data) {
         quoteAsset: token_address_mapping[data['order']['quoteAsset']],
         quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
     }
-    const result = await dalService.sendUpdateBestTask(order.orderId.toString(), order, taskDefinitionId.UpdateBest);
+    const result = await dalService.sendUpdateBestPriceTask(order.orderId.toString(), order, taskDefinitionId.UpdateBestPrice);
     return result;
 }
 
@@ -137,7 +140,7 @@ async function sendCancelOrderTask(data) {
         baseAsset: token_address_mapping[data['order']['baseAsset']],
         quoteAsset: token_address_mapping[data['order']['quoteAsset']],
     }
-    const result = await dalService.sendCancelOrderTask(order.orderId.toString(), order, taskDefinitionId.INTERNAL_CancelOrder);
+    const result = await dalService.sendCancelOrderTask(order.orderId.toString(), order, taskDefinitionId.CancelOrder);
     return result;
 }
 
@@ -152,7 +155,7 @@ async function sendCreateOrderTask(data) {
         quoteAsset: token_address_mapping[data['order']['quoteAsset']],
         quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
     }
-    const result = await dalService.sendCreateOrderTask(order.orderId.toString(), order, taskDefinitionId.INTERNAL_CreateOrder);
+    const result = await dalService.sendCreateOrderTask(order.orderId.toString(), order, taskDefinitionId.CreateOrder);
     return result;
 }
 
@@ -179,7 +182,7 @@ module.exports = {
     createOrder,
     sendCreateOrderTask,
     sendFillOrderTask,
-    sendUpdateBestTask,
+    sendUpdateBestPriceTask,
     
     cancelOrder,
     sendCancelOrderTask,

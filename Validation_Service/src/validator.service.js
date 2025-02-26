@@ -6,7 +6,7 @@ async function validate(proofOfTask, data, taskDefinitionId) {
     try {
         let isApproved = false;
 
-        if (taskDefinitionId === taskController.taskDefinitionId.UpdateBest) {
+        if (taskDefinitionId === taskController.taskDefinitionId.CreateOrder) {
             const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
                 ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'],
                 data
@@ -31,7 +31,26 @@ async function validate(proofOfTask, data, taskDefinitionId) {
             if (taskResult['order']['order_id'].toString() === proofOfTask) {
                 isApproved = true;
             }
-        } else if (taskDefinitionId === taskController.taskDefinitionId.INTERNAL_CancelOrder) {
+        } else if (taskDefinitionId === taskController.taskDefinitionId.FillOrder) {
+            const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'],
+                data
+            );
+            const {
+                orderId,
+                account,
+                sqrtPrice,
+                amount,
+                isBid,  
+                baseAsset,
+                quoteAsset,
+                quoteAmount
+            } = decodedData[0];
+
+            if (orderId.toString() === proofOfTask) {
+                isApproved = true;  
+            }
+        } else if (taskDefinitionId === taskController.taskDefinitionId.CancelOrder) {
             const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
                 ['tuple(uint256 orderId, bool isBid, address baseAsset, address quoteAsset)'],
                 data

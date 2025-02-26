@@ -57,9 +57,13 @@ def register_order(payload: str = Form(...)):
             }
             converted_trades.append(converted_trade)
 
+        if order is None:
+            order = _order.copy()
+            order['order_id'] = None
+
         # Convert order to a serializable format
         order_dict = {
-            'order_id': int(order['order_id']) if order is not None else None,
+            'order_id': int(order['order_id']) if order['order_id'] is not None else None,
             'account': order['account'],
             'price': float(order['price']),
             'quantity': float(order['quantity']),
