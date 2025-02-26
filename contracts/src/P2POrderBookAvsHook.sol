@@ -298,7 +298,16 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     }
 
     /**
-     * There are 3 kinds of tasks:
+     * [NEW] There are 5 kinds of tasks on-chain:
+     * 1. No-op (): Order does not cross spread and is not best price.
+     * 2. UpdateBestPrice (order): Order does not cross spread but is best price OR best price order cancelled.
+     * 3. PartialFill (order): Order crosses spread and partially fills best price.
+     * 4. CompleteFill (order, nextOrder): Order crosses spread and completely fills best price, also update best price.
+     * 5. ProcessWithdrawal (account, amount): User requested withdrawal, send money back.
+     */
+
+    /**
+     * [OLD -- see NEW above] There are 3 kinds of tasks:
      * 0. UpdateBestPrice: Update best bid or best ask (in case of new best or cancellation of best)
      * 1. FillOrder: Settle, then
      *   if it is a partial fill (amount < best bid/ask) then reduce best bid/ask amount
