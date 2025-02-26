@@ -11,7 +11,9 @@ router.post("/limitOrder", async (req, res) => {
     
     try {
         const data = await taskController.createOrder(account, price, quantity, side, baseAsset, quoteAsset);
-        var result = await taskController.sendCreateOrderTask(data);
+        let taskData = JSON.parse(JSON.stringify(data));
+        taskData['order']['quantity'] = quantity; // restore the before quantity in case of fill order
+        var result = await taskController.sendCreateOrderTask(taskData);
 
         // check if the order is filled
         if (data['order']['trades'] && data['order']['trades'].length > 0) {
@@ -22,7 +24,7 @@ router.post("/limitOrder", async (req, res) => {
                 // party: [trade_id, side, head_order.order_id, new_book_quantity]
                 fillOrderData['order']['quantity'] = trade['quantity'];
 
-                result = await taskController.sendFillOrderTask(fillOrderData);
+                result |= await taskController.sendFillOrderTask(fillOrderData);
 
                 if (!result) {
                     return res.status(500).send(new CustomError("sendFillOrderTask went wrong", {}));
@@ -30,9 +32,10 @@ router.post("/limitOrder", async (req, res) => {
             }
 
             // update the best price
-            const opposite_side = side === 'bid' ? 'ask' : 'bid';
-            const _data = await taskController.getBestOrder(baseAsset, quoteAsset, opposite_side);
-            result = await taskController.sendUpdateBestPriceTask(_data);
+            const _ask_data = await taskController.getBestOrder(baseAsset, quoteAsset, 'ask');
+            result |= await taskController.sendUpdateBestPriceTask(_ask_data);
+            const _bid_data = await taskController.getBestOrder(baseAsset, quoteAsset, 'bid');
+            result |= await taskController.sendUpdateBestPriceTask(_bid_data);
         }
 
         if (result) {

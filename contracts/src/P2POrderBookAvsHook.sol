@@ -23,6 +23,7 @@ struct Order {
     address baseAsset; // WETH in WETH/USDC
     address quoteAsset; // USDC in WETH/USDC
     uint256 quoteAmount; // quote asset amount (alternative representation of price, better for swapping)
+    bool isValid;
 }
 
 struct BestPrices {
@@ -143,10 +144,11 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             isBid: uint8(taskData[startIdx + 116]) == 1,
             baseAsset: address(uint160(uint256(bytes32(taskData[startIdx + 117 : startIdx + 137])))),
             quoteAsset: address(uint160(uint256(bytes32(taskData[startIdx + 137 : startIdx + 157])))),
-            quoteAmount: uint256(bytes32(taskData[startIdx + 137 : startIdx + 169]))
+            quoteAmount: uint256(bytes32(taskData[startIdx + 137 : startIdx + 169])),
+            isValid: uint8(taskData[startIdx + 169]) == 1
         });
 
-        return (order, startIdx + 169);
+        return (order, startIdx + 170);
     }
 
     function extractWithdrawalData(
@@ -167,8 +169,13 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
 
-        if (order.isBid) bestPrices.bid = order;
-        else bestPrices.ask = order;
+        if (order.isValid) {
+            if (order.isBid) bestPrices.bid = order;
+            else bestPrices.ask = order;
+        } else {
+            if (order.isBid) delete bestPrices.bid;
+            else delete bestPrices.ask;
+        }
         
         emit UpdateBestOrder(
             order.orderId,

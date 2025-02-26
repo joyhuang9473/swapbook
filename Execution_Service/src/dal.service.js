@@ -14,7 +14,7 @@ async function sendCreateOrderTask(proofOfTask, data, taskDefinitionId) {
 
   var wallet = new ethers.Wallet(privateKey);
   var performerAddress = wallet.address;
-  data = ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'], [data])
+  data = ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid)'], [data])
   const message = ethers.AbiCoder.defaultAbiCoder().encode(["string", "bytes", "address", "uint16"], [proofOfTask, data, performerAddress, taskDefinitionId]);
   const messageHash = ethers.keccak256(message);
   const sig = wallet.signingKey.sign(messageHash).serialized;
@@ -45,7 +45,7 @@ async function sendUpdateBestPriceTask(proofOfTask, data, taskDefinitionId) {
 
   var wallet = new ethers.Wallet(privateKey);
   var performerAddress = wallet.address;
-  data = ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'], [data])
+  data = ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid)'], [data])
   const message = ethers.AbiCoder.defaultAbiCoder().encode(["string", "bytes", "address", "uint16"], [proofOfTask, data, performerAddress, taskDefinitionId]);
   const messageHash = ethers.keccak256(message);
   const sig = wallet.signingKey.sign(messageHash).serialized;
@@ -109,7 +109,7 @@ async function sendFillOrderTask(proofOfTask, data, taskDefinitionId) {
 
   var wallet = new ethers.Wallet(privateKey);
   var performerAddress = wallet.address;
-  data = ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'], [data])
+  data = ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid)'], [data])
   const message = ethers.AbiCoder.defaultAbiCoder().encode(["string", "bytes", "address", "uint16"], [proofOfTask, data, performerAddress, taskDefinitionId]);
   const messageHash = ethers.keccak256(message);
   const sig = wallet.signingKey.sign(messageHash).serialized;

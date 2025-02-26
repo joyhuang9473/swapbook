@@ -8,7 +8,7 @@ async function validate(proofOfTask, data, taskDefinitionId) {
 
         if (taskDefinitionId === taskController.taskDefinitionId.CreateOrder) {
             const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'],
+                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid)'],
                 data
             );
             const {
@@ -19,21 +19,27 @@ async function validate(proofOfTask, data, taskDefinitionId) {
                 isBid,
                 baseAsset,
                 quoteAsset,
-                quoteAmount
+                quoteAmount,
+                isValid
             } = decodedData[0];
             const price = Math.pow(
                 Number(ethers.formatUnits(sqrtPrice, taskController.decimal)),
                 2
             );
             const side = isBid ? 'bid' : 'ask';
-    
-            const taskResult = await taskController.createOrder(account, price, amount, side, baseAsset, quoteAsset);
+
+            // turn address to symbol
+            const baseAssetSymbol = taskController.token_address_symbol_mapping[baseAsset];
+            const quoteAssetSymbol = taskController.token_address_symbol_mapping[quoteAsset];
+            const amountFormatted = Number(ethers.formatUnits(amount, taskController.decimal));
+
+            const taskResult = await taskController.createOrder(account, price, amountFormatted, side, baseAssetSymbol, quoteAssetSymbol);
             if (taskResult['order']['order_id'].toString() === proofOfTask) {
                 isApproved = true;
             }
         } else if (taskDefinitionId === taskController.taskDefinitionId.FillOrder) {
             const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'],
+                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid)'],
                 data
             );
             const {
@@ -44,7 +50,8 @@ async function validate(proofOfTask, data, taskDefinitionId) {
                 isBid,  
                 baseAsset,
                 quoteAsset,
-                quoteAmount
+                quoteAmount,
+                isValid
             } = decodedData[0];
 
             if (orderId.toString() === proofOfTask) {
@@ -69,7 +76,7 @@ async function validate(proofOfTask, data, taskDefinitionId) {
             }
         } else if (taskDefinitionId === taskController.taskDefinitionId.UpdateBestPrice) {
             const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'],
+                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid)'],
                 data
             );
             const {
@@ -80,7 +87,8 @@ async function validate(proofOfTask, data, taskDefinitionId) {
                 isBid,  
                 baseAsset,
                 quoteAsset,
-                quoteAmount
+                quoteAmount,
+                isValid
             } = decodedData[0];
 
             if (orderId.toString() === proofOfTask) {

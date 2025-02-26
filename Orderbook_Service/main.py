@@ -59,7 +59,7 @@ def register_order(payload: str = Form(...)):
 
         if order is None:
             order = _order.copy()
-            order['order_id'] = None
+            order['order_id'] = 1234567890 # fake order_id
 
         # Convert order to a serializable format
         order_dict = {
@@ -72,7 +72,8 @@ def register_order(payload: str = Form(...)):
             'quoteAsset': order['quoteAsset'],
             # 'type': order['type'],
             'trade_id': order['trade_id'],
-            'trades': converted_trades
+            'trades': converted_trades,
+            'isValid': True if order['order_id'] is not None else False,
         }
 
         return JSONResponse(content={
@@ -91,14 +92,22 @@ def cancel_order(payload: str = Form(...)):
         symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
 
         order_book = order_books[symbol]
+        order = order_book.bids.get_order(order_id) if order_id in order_book.bids.order_map else order_book.asks.get_order(order_id)
         order_book.cancel_order(side, order_id)
 
         # Convert order to a serializable format
         order_dict = {
             'order_id': int(order_id),
-            'side': side,
-            'baseAsset': payload_json["baseAsset"],
-            'quoteAsset': payload_json["quoteAsset"],
+            'account': order['account'],
+            'price': float(order['price']),
+            'quantity': float(order['quantity']),
+            'side': order['side'],
+            'baseAsset': order['baseAsset'],
+            'quoteAsset': order['quoteAsset'],
+            # 'type': order['type'],
+            'trade_id': order['trade_id'],
+            'trades': [],
+            'isValid': False,
         }
 
         return JSONResponse(content={
@@ -107,6 +116,43 @@ def cancel_order(payload: str = Form(...)):
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# @app.post("/api/order")
+# def get_order(payload: str = Form(...)):
+#     try:
+#         payload_json = json.loads(payload)
+#         order_id = payload_json['orderId']
+#         symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
+
+#         order_book = order_books[symbol]
+#         order = order_book.bids.get_order(order_id) if order_id in order_book.bids.order_map else order_book.asks.get_order(order_id)
+
+#         if order is not None:
+#             order_dict = {
+#                 'order_id': int(order['order_id']) if order['order_id'] is not None else None,
+#                 'account': order['account'],
+#                 'price': float(order['price']),
+#                 'quantity': float(order['quantity']),
+#                 'side': order['side'],
+#                 'baseAsset': order['baseAsset'],
+#                 'quoteAsset': order['quoteAsset'],
+#                 # 'type': order['type'],
+#                 'trade_id': order['trade_id'],
+#                 'trades': [],
+#                 'isValid': True if order['order_id'] is not None else False,
+#             }
+
+#             return JSONResponse(content={
+#                 "message": "Order retrieved successfully",
+#                 "order": order_dict
+#             })
+#         else:
+#             return JSONResponse(content={
+#                 "message": "Order not found",
+#                 "order": None
+#             })
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/orderbook")
 def get_orderbook(payload: str = Form(...)):
@@ -134,16 +180,28 @@ def get_best_order(payload: str = Form(...)):
             raise HTTPException(status_code=404, detail="Order book not found")
 
         order_book = order_books[symbol]
+        price = order_book.get_best_bid() if side == 'bid' else order_book.get_best_ask()
+        if price is None:
+            # no bid or ask order
+            # fake content
+            return JSONResponse(content={
+                "message": "no bid or ask order",
+                "order": {
+                    'order_id': 1234567890,
+                    'account': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                    'price': 0,
+                    'quantity': 0,
+                    'side': side,
+                    'baseAsset': payload_json["baseAsset"],
+                    'quoteAsset': payload_json["quoteAsset"],
+                    'trade_id': None,
+                    'trades': [],
+                    'isValid': False
+                }
+            })
 
-        if side == 'bid':
-            price = order_book.get_best_bid()
-            price_list = order_book.bids.price_map[price]
-        else:
-            price = order_book.get_best_ask()
-            price_list = order_book.asks.price_map[price]
-
+        price_list = order_book.bids.price_map[price] if side == 'bid' else order_book.asks.price_map[price]
         current_order = price_list.head_order
-
         order_dict = {
             'order_id': int(current_order.order_id),
             'account': current_order.account,
@@ -153,6 +211,8 @@ def get_best_order(payload: str = Form(...)):
             'baseAsset': current_order.baseAsset,
             'quoteAsset': current_order.quoteAsset,
             'trade_id': current_order.trade_id,
+            'trades': [],
+            'isValid': True
         }
 
         return JSONResponse(content={

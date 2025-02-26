@@ -15,10 +15,13 @@ const taskDefinitionId = {
 
 const decimal = 18;
 
-// TODO: hard code for now
-const token_address_mapping = {
-    'WBTC': '0x992e666e0dF32905EBF7893Aeca26e2C1De0427d',
-    'USDC': '0x45FCE027B6e797f5E8be35D49F33a918D77761f1',
+const token_symbol_address_mapping = {
+    'WETH': '0xB7DE8be39aA5f950C943a4129bD03B207A52e06a',
+    'USDC': '0x62c6a8496dDa41FCdf7135726dE498f55EfF3bea',
+}
+const token_address_symbol_mapping = {
+    '0xB7DE8be39aA5f950C943a4129bD03B207A52e06a': 'WETH',
+    '0x62c6a8496dDa41FCdf7135726dE498f55EfF3bea': 'USDC',
 }
 
 async function createOrder(account, price, quantity, side, baseAsset, quoteAsset) {
@@ -44,9 +47,6 @@ async function createOrder(account, price, quantity, side, baseAsset, quoteAsset
     }
 
     let data = await response.json();
-    if (data['order']['order_id'] === null) {
-        data['order']['order_id'] = 1234567890;
-    }
     return data;
 }
 
@@ -125,9 +125,10 @@ async function sendUpdateBestPriceTask(data) {
         sqrtPrice: ethers.parseUnits(Math.sqrt(data['order']['price']).toString(), decimal),
         amount: ethers.parseUnits(data['order']['quantity'].toString(), decimal),
         isBid: data['order']['side'] === 'bid',
-        baseAsset: token_address_mapping[data['order']['baseAsset']],
-        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
-        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
+        baseAsset: token_symbol_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_symbol_address_mapping[data['order']['quoteAsset']],
+        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal),
+        isValid: data['order']['isValid']
     }
     const result = await dalService.sendUpdateBestPriceTask(order.orderId.toString(), order, taskDefinitionId.UpdateBestPrice);
     return result;
@@ -137,8 +138,8 @@ async function sendCancelOrderTask(data) {
     const order = {
         orderId: data['order']['order_id'],
         isBid: data['order']['side'] === 'bid',
-        baseAsset: token_address_mapping[data['order']['baseAsset']],
-        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
+        baseAsset: token_symbol_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_symbol_address_mapping[data['order']['quoteAsset']],
     }
     const result = await dalService.sendCancelOrderTask(order.orderId.toString(), order, taskDefinitionId.CancelOrder);
     return result;
@@ -151,9 +152,10 @@ async function sendCreateOrderTask(data) {
         sqrtPrice: ethers.parseUnits(Math.sqrt(data['order']['price']).toString(), decimal),
         amount: ethers.parseUnits(data['order']['quantity'].toString(), decimal),
         isBid: data['order']['side'] === 'bid',
-        baseAsset: token_address_mapping[data['order']['baseAsset']],
-        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
-        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
+        baseAsset: token_symbol_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_symbol_address_mapping[data['order']['quoteAsset']],
+        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal),
+        isValid: data['order']['isValid']
     }
     const result = await dalService.sendCreateOrderTask(order.orderId.toString(), order, taskDefinitionId.CreateOrder);
     return result;
@@ -166,9 +168,10 @@ async function sendFillOrderTask(data) {
         sqrtPrice: ethers.parseUnits(Math.sqrt(data['order']['price']).toString(), decimal),
         amount: ethers.parseUnits(data['order']['quantity'].toString(), decimal),
         isBid: data['order']['side'] === 'bid',
-        baseAsset: token_address_mapping[data['order']['baseAsset']],
-        quoteAsset: token_address_mapping[data['order']['quoteAsset']],
-        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal)
+        baseAsset: token_symbol_address_mapping[data['order']['baseAsset']],
+        quoteAsset: token_symbol_address_mapping[data['order']['quoteAsset']],
+        quoteAmount: ethers.parseUnits((data['order']['price'] * data['order']['quantity']).toString(), decimal),
+        isValid: data['order']['isValid']
     }
     const result = await dalService.sendFillOrderTask(order.orderId.toString(), order, taskDefinitionId.FillOrder);
     return result;
@@ -188,4 +191,8 @@ module.exports = {
     sendCancelOrderTask,
     
     getBestOrder,
+
+    decimal,
+    token_symbol_address_mapping,
+    token_address_symbol_mapping,
 };
