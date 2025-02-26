@@ -17,7 +17,7 @@ import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {console} from "forge-std/console.sol";
-import {DynamicFeesAvsHook} from "../src/DynamicFeesAvsHook.sol";
+import {P2POrderBookAvsHook} from "../src/P2POrderBookAvsHook.sol";
 import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 
 
@@ -32,7 +32,7 @@ contract DeployToken is Script {
 
     function run(address poolManager, address avsHook) public {
         PoolManager manager = PoolManager(poolManager);
-        DynamicFeesAvsHook hook = DynamicFeesAvsHook(avsHook);
+        P2POrderBookAvsHook hook = P2POrderBookAvsHook(avsHook);
 
         vm.startBroadcast();
 
