@@ -54,8 +54,8 @@ contract DeployToken is Script {
             );
         }
 
-        tokenA.mint(msg.sender, 1000 * 10 ** 18);
-        tokenB.mint(msg.sender, 10000 * 10 ** 18);
+        tokenA.mint(msg.sender, 1000000 * 10 ** 18);
+        tokenB.mint(msg.sender, 10000000000 * 10 ** 18);
 
         key = PoolKey({
             currency0: token0,
