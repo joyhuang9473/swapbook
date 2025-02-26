@@ -24,6 +24,7 @@ struct Order {
     address quoteAsset; // USDC in WETH/USDC
     uint256 quoteAmount; // quote asset amount (alternative representation of price, better for swapping)
     bool isValid;
+    uint256 timestamp;
 }
 
 struct BestPrices {
@@ -160,10 +161,11 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             baseAsset: address(uint160(uint256(bytes32(taskData[startIdx + 117 : startIdx + 137])))),
             quoteAsset: address(uint160(uint256(bytes32(taskData[startIdx + 137 : startIdx + 157])))),
             quoteAmount: uint256(bytes32(taskData[startIdx + 137 : startIdx + 169])),
-            isValid: uint8(taskData[startIdx + 169]) == 1
+            isValid: uint8(taskData[startIdx + 169]) == 1,
+            timestamp: uint256(bytes32(taskData[startIdx + 170 : startIdx + 202]))
         });
 
-        return (order, startIdx + 170);
+        return (order, startIdx + 202);
     }
 
     function extractWithdrawalData(
