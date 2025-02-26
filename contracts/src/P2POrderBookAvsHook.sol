@@ -42,9 +42,11 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     mapping(address => mapping(address => BestPrices)) public bestBidAndAsk; // baseAsset => quoteAsset => BestPrices
 
     // event MakeOrder(uint256 indexed orderId, address indexed maker, uint256 sqrtPrice, uint256 amount);
-    event UpdateBestOrder(uint256 indexed orderId, address indexed maker, uint256 sqrtPrice, uint256 amount);
+    event UpdateBestOrder(uint256 indexed orderId, address indexed maker, address indexed asset, uint256 sqrtPrice, uint256 amount);
 
-    event FillOrder(uint256 indexed orderId, address indexed taker, uint256 sqrtPrice, uint256 amount);
+    event PartialFillOrder(uint256 indexed orderId, address maker, address indexed taker, address indexed asset, uint256 sqrtPrice, uint256 amount);
+    
+    event CompleteFillOrder(uint256 indexed orderId, address maker, address indexed taker, address indexed asset, uint256 sqrtPrice, uint256 amount);
 
     event Swap(
         address account1, address indexed asset1, uint256 amount1,
@@ -173,6 +175,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         emit UpdateBestOrder(
             order.orderId,
             order.account,
+            order.asset,
             order.sqrtPrice,
             order.amount
         );
@@ -217,9 +220,19 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             counterpartyOrder.amount = amountRemaining;
             counterpartyOrder.quoteAmount = quoteAmountRemaining;
 
+            emit PartialFillOrder(
+                order.orderId,
+                counterpartyOrder.account,
+                order.account,
+                order.asset,
+                order.sqrtPrice,
+                order.amount
+            );
+
             emit UpdateBestOrder(
                 order.orderId,
                 order.account,
+                order.asset,
                 order.sqrtPrice,
                 amountRemaining
             );
@@ -233,6 +246,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             emit UpdateBestOrder(
                 newBest.orderId,
                 newBest.account,
+                newBest.asset,
                 newBest.sqrtPrice,
                 newBest.amount
             );
