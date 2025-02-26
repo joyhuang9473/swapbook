@@ -1,6 +1,6 @@
-# P2P Orderbook Exchange Frontend
+# SwapBook Frontend
 
-A modern React frontend for the P2P Orderbook Exchange using Uniswap V4 Hooks.
+A React frontend for SwapBook using Uniswap V4 Hooks.
 
 ## Features
 

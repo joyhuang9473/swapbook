@@ -43,7 +43,7 @@ const Layout = ({ children }) => {
         shadow="md"
         alignItems="center"
       >
-        <Heading size="md">P2P Orderbook Exchange</Heading>
+        <Heading size="md">SwapBook</Heading>
         <Spacer />
         
         {networkError && (
@@ -84,7 +84,7 @@ const Layout = ({ children }) => {
 
       {/* Footer */}
       <Box as="footer" p={4} bg="gray.800" color="gray.400" textAlign="center">
-        <Text fontSize="sm">© 2024 P2P Orderbook Exchange - Powered by Uniswap V4 Hooks</Text>
+        <Text fontSize="sm">© 2024 SwapBook - Powered by Othentic & Uniswap V4</Text>
       </Box>
     </Box>
   );

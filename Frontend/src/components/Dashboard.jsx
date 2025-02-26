@@ -332,7 +332,7 @@ const Dashboard = () => {
     return (
       <Box textAlign="center" py={10}>
         <Heading size="lg" mb={4}>Connect Your Wallet</Heading>
-        <Text>Please connect your wallet to access the P2P Orderbook Exchange</Text>
+        <Text>Please connect your wallet to access SwapBook</Text>
       </Box>
     );
   }
