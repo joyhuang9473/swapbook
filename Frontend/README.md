@@ -50,14 +50,15 @@ The app will be available at `http://localhost:3000`.
 
 ## Configuration
 
-Update the following values in `src/context/Web3Context.jsx` with your contract addresses:
+Key configuration:
 
-```javascript
-const CHAIN_ID = 80002; // Polygon Amoy testnet
-const P2P_ORDERBOOK_ADDRESS = '0x0000000000000000000000000000000000000000'; // Replace with actual address
-```
+- Network settings (chain ID, network name)
+- Contract addresses
+- Token definitions
+- API endpoints
+- ABI references
 
-Also update the token addresses in `src/components/Dashboard.jsx` if needed.
+To modify any configuration value, update the appropriate section in `config.json` rather than changing values directly in the code.
 
 ## Build for Production
 

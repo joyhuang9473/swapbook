@@ -2,13 +2,14 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { initializeConnector } from '@web3-react/core';
 import { MetaMask } from '@web3-react/metamask';
 import { ethers } from 'ethers';
+import config from '../../config.json';
 
 // Contract ABI and addresses
 import P2POrderBookABI from '../utils/P2POrderBookABI';
 
 // Network configuration - Polygon Amoy
-const CHAIN_ID = 80002; // Polygon Amoy testnet
-const P2P_ORDERBOOK_ADDRESS = '0x0000000000000000000000000000000000000000'; // Replace with actual address
+const CHAIN_ID = config.network.chainId; // Polygon Amoy testnet
+const P2P_ORDERBOOK_ADDRESS = config.contracts.P2P_ORDERBOOK_ADDRESS; // Replace with actual address
 
 // Initialize connectors
 export const [metaMask, metaMaskHooks] = initializeConnector((actions) => new MetaMask({ actions }));

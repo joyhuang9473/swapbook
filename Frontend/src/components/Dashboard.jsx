@@ -46,20 +46,10 @@ import {
 import { useWeb3 } from '../context/Web3Context';
 import { orderApi } from '../utils/api';
 import { ethers } from 'ethers';
+import config from '../../config.json';
 
-// Sample token addresses (to be updated with actual addresses)
-const TOKENS = {
-  WBTC: {
-    address: '0x832fbBCB6B4F4F6F97A05898B735edc4Fc6BF618',
-    symbol: 'WBTC',
-    decimals: 18,
-  },
-  USDC: {
-    address: '0xD834AEE46DDc4c7bBa4126396d0395B87B05c60c',
-    symbol: 'USDC',
-    decimals: 6,
-  },
-};
+// Use token definitions from config file
+const TOKENS = config.tokens;
 
 const Dashboard = () => {
   const { active, account, escrowFunds } = useWeb3();

@@ -1,8 +1,9 @@
 import axios from 'axios';
+import config from '../../config.json';
 
 const API_URL = process.env.NODE_ENV === 'production' 
-  ? '/api' 
-  : 'http://localhost:8080'; // or whatever the Execution Service URL is
+  ? config.api.baseUrl.production
+  : config.api.baseUrl.development;
 
 // Create an axios instance
 const api = axios.create({
@@ -18,7 +19,7 @@ export const orderApi = {
   // Place a limit order
   placeLimitOrder: async (account, price, quantity, side, baseAsset, quoteAsset) => {
     try {
-      const response = await api.post('/limitOrder', {
+      const response = await api.post(config.api.endpoints.limitOrder, {
         account,
         price,
         quantity,
@@ -36,7 +37,7 @@ export const orderApi = {
   // Cancel an order
   cancelOrder: async (orderId, side, baseAsset, quoteAsset) => {
     try {
-      const response = await api.post('/cancelOrder', {
+      const response = await api.post(config.api.endpoints.cancelOrder, {
         orderId,
         side,
         baseAsset,
@@ -52,7 +53,7 @@ export const orderApi = {
   // Get orderbook for a symbol
   getOrderBook: async (symbol) => {
     try {
-      const response = await api.post('/orderBook', {
+      const response = await api.post(config.api.endpoints.orderBook, {
         symbol
       });
       return response.data;
@@ -65,7 +66,7 @@ export const orderApi = {
   // Initiate withdrawal (need to add this endpoint to the Execution Service)
   initiateWithdrawal: async (account, asset, amount) => {
     try {
-      const response = await api.post('/initiateWithdrawal', {
+      const response = await api.post(config.api.endpoints.initiateWithdrawal, {
         account,
         asset,
         amount
