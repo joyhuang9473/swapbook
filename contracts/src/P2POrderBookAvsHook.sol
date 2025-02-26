@@ -42,11 +42,24 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     mapping(address => mapping(address => BestPrices)) public bestBidAndAsk; // baseAsset => quoteAsset => BestPrices
 
     // event MakeOrder(uint256 indexed orderId, address indexed maker, uint256 sqrtPrice, uint256 amount);
-    event UpdateBestOrder(uint256 indexed orderId, address indexed maker, address indexed asset, uint256 sqrtPrice, uint256 amount);
+    event UpdateBestOrder(
+        uint256 indexed orderId,
+        address maker,
+        address indexed baseAsset,
+        address indexed quoteAsset,
+        uint256 sqrtPrice,
+        uint256 amount
+    );
 
-    event PartialFillOrder(uint256 indexed orderId, address maker, address indexed taker, address indexed asset, uint256 sqrtPrice, uint256 amount);
+    event PartialFillOrder(
+        uint256 indexed takerOrderId,
+        uint256 indexed makerOrderId
+    );
     
-    event CompleteFillOrder(uint256 indexed orderId, address maker, address indexed taker, address indexed asset, uint256 sqrtPrice, uint256 amount);
+    event CompleteFillOrder(
+        uint256 indexed makerOrderId,
+        uint256 indexed takerOrderId
+    );
 
     event Swap(
         address account1, address indexed asset1, uint256 amount1,
@@ -175,7 +188,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         emit UpdateBestOrder(
             order.orderId,
             order.account,
-            order.asset,
+            order.baseAsset,
+            order.quoteAsset,
             order.sqrtPrice,
             order.amount
         );
@@ -222,17 +236,14 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
             emit PartialFillOrder(
                 order.orderId,
-                counterpartyOrder.account,
-                order.account,
-                order.asset,
-                order.sqrtPrice,
-                order.amount
+                counterpartyOrder.orderId        
             );
 
             emit UpdateBestOrder(
                 order.orderId,
                 order.account,
-                order.asset,
+                order.baseAsset,
+                order.quoteAsset,
                 order.sqrtPrice,
                 amountRemaining
             );
@@ -243,10 +254,16 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             // Update best price with next best order (passed in by AVS)
             (Order memory newBest,) = extractOrder(taskData, lastIdx);
 
+            emit CompleteFillOrder(
+                order.orderId,
+                counterpartyOrder.orderId        
+            );
+
             emit UpdateBestOrder(
                 newBest.orderId,
                 newBest.account,
-                newBest.asset,
+                newBest.baseAsset,
+                newBest.quoteAsset,
                 newBest.sqrtPrice,
                 newBest.amount
             );
