@@ -78,8 +78,12 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     error OnlyAttestationCenter();
 
     error OrderTooLarge();
+    
+    error InvalidPartialFill();
+    
+    error InvalidCompleteFill();
 
-    error InvalidTaskDefinitionId();
+    error InvalidTaskDefinitionId(uint256 id);
 
     error UnsuccessfulTransfer();
 
@@ -204,14 +208,22 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         );
     }
 
-    function taskFillOrder(bytes calldata taskData) private {
+    function taskPartialFillOrder(bytes calldata taskData) private {
         // Parse the bytes data into structured data
-        (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
+        (Order memory order,) = extractOrder(taskData, 0);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
 
         Order storage counterpartyOrder = (order.isBid) ? bestPrices.ask : bestPrices.bid;
+
+        if (counterpartyOrder.amount < order.amount) {
+            // For now, only partially/fully filling best bid/ask
+            revert OrderTooLarge();
+        } else if (counterpartyOrder.amount == order.amount) {
+            // This should be a Complete Fill Order
+            revert InvalidPartialFill();
+        }
 
         // Settle orders for full amount of incoming order and partial/full amount of best price order
         if (order.isBid) {
@@ -228,56 +240,80 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
             );
         }
 
-        // Update best order
+        // This is the amount that will be remaining of the best order once partially filled
+        uint256 amountRemaining = counterpartyOrder.amount - order.amount;
+        uint256 quoteAmountRemaining = counterpartyOrder.quoteAmount - order.quoteAmount;
+
+        // Update best price order by reducing amounts of existing best order
+        counterpartyOrder.amount = amountRemaining;
+        counterpartyOrder.quoteAmount = quoteAmountRemaining;
+
+        emit PartialFillOrder(
+            order.orderId,
+            counterpartyOrder.orderId        
+        );
+
+        emit UpdateBestOrder(
+            order.orderId,
+            order.account,
+            order.baseAsset,
+            order.quoteAsset,
+            order.sqrtPrice,
+            amountRemaining
+        );
+    }
+
+
+    function taskCompleteFillOrder(bytes calldata taskData) private {
+        // Parse the bytes data into structured data
+        (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
+
+        // Get current best bid and ask
+        BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
+
+        Order storage counterpartyOrder = (order.isBid) ? bestPrices.ask : bestPrices.bid;
+
         if (counterpartyOrder.amount < order.amount) {
             // For now, only partially/fully filling best bid/ask
             revert OrderTooLarge();
         } else if (counterpartyOrder.amount > order.amount) {
-            // Partial fill
+            // This should be a Partial Fill Order
+            revert InvalidCompleteFill();
+        }
 
-            // This is the amount that will be remaining of the best order once partially filled
-            uint256 amountRemaining = counterpartyOrder.amount - order.amount;
-            uint256 quoteAmountRemaining = counterpartyOrder.quoteAmount - order.quoteAmount;
-
-            // Update best price order by reducing amounts of existing best order
-            counterpartyOrder.amount = amountRemaining;
-            counterpartyOrder.quoteAmount = quoteAmountRemaining;
-
-            emit PartialFillOrder(
-                order.orderId,
-                counterpartyOrder.orderId        
+        // Settle orders for full amount of incoming order and partial/full amount of best price order
+        if (order.isBid) {
+            // Incoming order is buyer, so they send quote asset and receive base asset
+            swapBalances(
+                order.account, order.quoteAsset, order.quoteAmount,
+                counterpartyOrder.account, order.baseAsset, order.amount
             );
-
-            emit UpdateBestOrder(
-                order.orderId,
-                order.account,
-                order.baseAsset,
-                order.quoteAsset,
-                order.sqrtPrice,
-                amountRemaining
-            );
-
         } else {
-            // Complete fill (counterpartyOrder.amount == order.amount)
-
-            // Update best price with next best order (passed in by AVS)
-            (Order memory newBest,) = extractOrder(taskData, lastIdx);
-
-            emit CompleteFillOrder(
-                order.orderId,
-                counterpartyOrder.orderId        
-            );
-
-            emit UpdateBestOrder(
-                newBest.orderId,
-                newBest.account,
-                newBest.baseAsset,
-                newBest.quoteAsset,
-                newBest.sqrtPrice,
-                newBest.amount
+            // Incoming order is seller, so they send base asset and receive quote asset
+            swapBalances(
+                order.account, order.baseAsset, order.amount,
+                counterpartyOrder.account, order.quoteAsset, order.quoteAmount
             );
         }
+
+        // Update best price with next best order (passed in by AVS)
+        (Order memory newBest,) = extractOrder(taskData, lastIdx);
+
+        emit CompleteFillOrder(
+            order.orderId,
+            counterpartyOrder.orderId        
+        );
+
+        emit UpdateBestOrder(
+            newBest.orderId,
+            newBest.account,
+            newBest.baseAsset,
+            newBest.quoteAsset,
+            newBest.sqrtPrice,
+            newBest.amount
+        );
     }
+
 
     function taskProcessWithdrawal(bytes calldata taskData) private {
         (address account, address asset, uint256 amount) = extractWithdrawalData(taskData);
@@ -328,13 +364,17 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         // Only AVS
         if (msg.sender != address(ATTESTATION_CENTER)) revert OnlyAttestationCenter();
 
-        // UpdateBest - AVS knows this is the best price already, no checks needed
-        if (_taskInfo.taskDefinitionId == 0) taskUpdateBest(_taskInfo.data);
-        // FillOrder - for now, assuming we are fully/partially filling the best bid/ask
-        else if (_taskInfo.taskDefinitionId == 1) taskFillOrder(_taskInfo.data);
-        // ProcessWithdrawal - AVS triggers user withdrawal
-        else if (_taskInfo.taskDefinitionId == 2) taskProcessWithdrawal(_taskInfo.data);
-        // else revert InvalidTaskDefinitionId(); // no-op
+        if (_taskInfo.taskDefinitionId == 1) {}
+            // No-op
+        else if (_taskInfo.taskDefinitionId == 2) taskUpdateBest(_taskInfo.data);
+            // UpdateBest - AVS knows this is the best price already, no checks needed
+        else if (_taskInfo.taskDefinitionId == 3) taskPartialFillOrder(_taskInfo.data);
+            // PartialFillOrder - we are partially filling only the best bid/ask
+        else if (_taskInfo.taskDefinitionId == 4) taskCompleteFillOrder(_taskInfo.data);
+            // FillOrder - we are completely filling the best bid/ask
+        else if (_taskInfo.taskDefinitionId == 5) taskProcessWithdrawal(_taskInfo.data);
+            // ProcessWithdrawal - AVS triggers user withdrawal
+        else revert InvalidTaskDefinitionId(_taskInfo.taskDefinitionId);
     }
 
     // ============== UNUSED FUNCTIONS ==============
