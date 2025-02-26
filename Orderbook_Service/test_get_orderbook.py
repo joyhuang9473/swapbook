@@ -4,7 +4,7 @@ import json
 url = 'http://0.0.0.0:8000/api/orderbook'
 
 payloadString = json.dumps({
-    "symbol": "WBTC_USDC"
+    "symbol": "WETH_USDC"
 })
 
 payload = {"payload": payloadString}

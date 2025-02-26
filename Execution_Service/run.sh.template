@@ -1,37 +1,26 @@
+# Submitting a partial fill order that crosses the opposing best price will result in a trade
+
 curl -X POST http://localhost:4003/api/limitOrder \
 -H "Content-Type: application/json" \
 -d '{
     "account": "0x8CF19D0d740E1031EF19357D7B28A84C30550665",
     "price": 2500,
-    "quantity": 0.5,
+    "quantity": 1,
     "side": "bid",
     "baseAsset": "WETH",
     "quoteAsset": "USDC"
 }'
 
-curl -X POST http://localhost:4003/api/orderBook \
--H "Content-Type: application/json" \
--d '{
-    "symbol": "WETH_USDC"
-}'
-
-# curl -X POST http://localhost:4003/api/cancelOrder \
-# -H "Content-Type: application/json" \
-# -d '{
-#     "orderId": 1,
-#     "side": "bid",
-#     "baseAsset": "WETH",
-#     "quoteAsset": "USDC"
-# }'
-
-# Submitting a limit order that crosses the opposing best price will result in a trade
 curl -X POST http://localhost:4003/api/limitOrder \
 -H "Content-Type: application/json" \
 -d '{
     "account": "0x4f25a11c64f7215596a0fCB8a275e84779690458",
     "price": 2500,
-    "quantity": 1,
+    "quantity": 0.5,
     "side": "ask",
     "baseAsset": "WETH",
     "quoteAsset": "USDC"
 }'
+
+# CreateOrder -> CreateOrder -> FillOrder -> UpdateBestPrice
+

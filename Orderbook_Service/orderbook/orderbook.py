@@ -5,6 +5,7 @@ from six.moves import cStringIO as StringIO
 from decimal import Decimal
 import json
 from .ordertree import OrderTree
+import time
 
 class OrderBook(object):
     def __init__(self, tick_size = 0.0001):
@@ -18,7 +19,8 @@ class OrderBook(object):
         self.next_order_id = 0
 
     def update_time(self):
-        self.time += 1
+        # self.time += 1
+        self.time = int(time.time() * 1000) # convert to milliseconds
 
     def process_order(self, quote, from_data, verbose):
         order_type = quote['type']

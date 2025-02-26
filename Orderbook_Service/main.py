@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import json
 import uvicorn
 from decimal import Decimal
-
+import time
 order_books = {}  # Dictionary to store multiple order books, keyed by symbol
 app = FastAPI()
 
@@ -29,6 +29,7 @@ def register_order(payload: str = Form(...)):
             'baseAsset' : payload_json['baseAsset'],
             'quoteAsset' : payload_json['quoteAsset']
         }
+
         trades, order = order_book.process_order(_order, False, False)
 
         converted_trades = []
@@ -61,6 +62,9 @@ def register_order(payload: str = Form(...)):
             order = _order.copy()
             order['order_id'] = 1234567890 # fake order_id
 
+        # override timestamp if provided by the client
+        order['timestamp'] = payload_json['timestamp'] if 'timestamp' in payload_json else order['timestamp']
+
         # Convert order to a serializable format
         order_dict = {
             'order_id': int(order['order_id']) if order['order_id'] is not None else None,
@@ -74,6 +78,7 @@ def register_order(payload: str = Form(...)):
             'trade_id': order['trade_id'],
             'trades': converted_trades,
             'isValid': True if order['order_id'] is not None else False,
+            'timestamp': order['timestamp']
         }
 
         return JSONResponse(content={
@@ -108,6 +113,7 @@ def cancel_order(payload: str = Form(...)):
             'trade_id': order['trade_id'],
             'trades': [],
             'isValid': False,
+            'timestamp': order['timestamp']
         }
 
         return JSONResponse(content={
@@ -196,7 +202,8 @@ def get_best_order(payload: str = Form(...)):
                     'quoteAsset': payload_json["quoteAsset"],
                     'trade_id': None,
                     'trades': [],
-                    'isValid': False
+                    'isValid': False,
+                    'timestamp': int(time.time() * 1000)
                 }
             })
 
@@ -212,7 +219,8 @@ def get_best_order(payload: str = Form(...)):
             'quoteAsset': current_order.quoteAsset,
             'trade_id': current_order.trade_id,
             'trades': [],
-            'isValid': True
+            'isValid': True,
+            'timestamp': current_order.timestamp
         }
 
         return JSONResponse(content={
