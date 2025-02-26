@@ -19,6 +19,11 @@ class Order(object):
         self.prev_order = None
         self.order_list = order_list
 
+        self.account = quote['account']
+        self.side = quote['side']
+        self.baseAsset = quote['baseAsset']
+        self.quoteAsset = quote['quoteAsset']
+
     # helper functions to get Orders in linked list
     def next_order(self):
         return self.next_order

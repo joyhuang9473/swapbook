@@ -41,7 +41,7 @@ async function sendCreateOrderTask(proofOfTask, data, taskDefinitionId) {
   }
 }
 
-async function sendUpdateBestTask(proofOfTask, data, taskDefinitionId) {
+async function sendUpdateBestPriceTask(proofOfTask, data, taskDefinitionId) {
 
   var wallet = new ethers.Wallet(privateKey);
   var performerAddress = wallet.address;
@@ -140,7 +140,7 @@ async function sendFillOrderTask(proofOfTask, data, taskDefinitionId) {
 module.exports = {
   init,
   sendCreateOrderTask,
-  sendUpdateBestTask,
+  sendUpdateBestPriceTask,
   sendCancelOrderTask,
   sendFillOrderTask,
 }

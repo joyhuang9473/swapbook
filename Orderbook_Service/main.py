@@ -145,14 +145,14 @@ def get_best_order(payload: str = Form(...)):
         current_order = price_list.head_order
 
         order_dict = {
-            'order_id': int(current_order['order_id']),
-            'account': current_order['account'],
-            'price': float(current_order['price']),
-            'quantity': float(current_order['quantity']),
-            'side': current_order['side'],
-            'baseAsset': current_order['baseAsset'],
-            'quoteAsset': current_order['quoteAsset'],
-            'trade_id': current_order['trade_id'],
+            'order_id': int(current_order.order_id),
+            'account': current_order.account,
+            'price': float(current_order.price),
+            'quantity': float(current_order.quantity),
+            'side': current_order.side,
+            'baseAsset': current_order.baseAsset,
+            'quoteAsset': current_order.quoteAsset,
+            'trade_id': current_order.trade_id,
         }
 
         return JSONResponse(content={

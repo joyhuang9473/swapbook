@@ -67,6 +67,25 @@ async function validate(proofOfTask, data, taskDefinitionId) {
             if (taskResult['order']['order_id'].toString() === proofOfTask) {
                 isApproved = true;
             }
+        } else if (taskDefinitionId === taskController.taskDefinitionId.UpdateBestPrice) {
+            const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+                ['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount)'],
+                data
+            );
+            const {
+                orderId,
+                account,
+                sqrtPrice,
+                amount,
+                isBid,  
+                baseAsset,
+                quoteAsset,
+                quoteAmount
+            } = decodedData[0];
+
+            if (orderId.toString() === proofOfTask) {
+                isApproved = true;  
+            }
         }
 
         return isApproved;
