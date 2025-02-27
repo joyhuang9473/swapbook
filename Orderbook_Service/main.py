@@ -43,7 +43,6 @@ def register_order(payload: str = Form(...)):
         }
 
         process_result = order_book.process_order(_order, False, False)
-
         # Determine task id
         # Task 1: Order does not cross spread and is not best price
             # trades should be empty if we did not cross the spread
@@ -78,6 +77,13 @@ def register_order(payload: str = Form(...)):
             else:
                 # Order is best price (TASK 2)
                 task_id = 2
+        else:
+            if order is None:
+                # fill the partial order, so this order is not in the book
+                # then we copy the original info to this order
+                # and make fake order_id
+                order = _order.copy()
+                order['order_id'] = 0
 
         assert order is not None
 
