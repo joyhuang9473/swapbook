@@ -62,28 +62,149 @@ const token_address_symbol_mapping = {
 //     return data;
 // }
 
-async function cancelOrder(orderId, side, baseAsset, quoteAsset) {
-    // Create form data
-    const formData = new FormData();
-    formData.append('payload', JSON.stringify({
-        orderId: orderId,
-        side: side,
-        baseAsset: baseAsset,
-        quoteAsset: quoteAsset
-    }));
+async function handleCancelOrder(orderData) {
+    try {
+        const { orderId, signature } = orderData;
+        
+        // Step 1: Get the order details from the order book
+        const formData = new FormData();
+        formData.append('payload', JSON.stringify({
+            orderId: orderId
+        }));
 
-    const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/cancel_order`, {
-        method: 'POST',
-        body: formData
-    });
+        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/get_order`, {
+            method: 'POST',
+            body: formData
+        });
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to cancel order: ${response.status}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new CustomError(errorData.error || `Failed to fetch order: ${response.status}`, errorData);
+        }
+
+        const orderInfo = await response.json();
+        
+        if (!orderInfo.order || orderInfo.status_code === 0) {
+            throw new CustomError("Order not found", { orderId });
+        }
+        
+        const order = orderInfo.order;
+        const account = order.account;
+        
+        // Step 2: Verify the signature
+        // Create the message that should have been signed
+        const cancelMessage = `Cancel order ${orderId}`;
+        
+        // Get message hash - must match the exact method used in frontend with MetaMask
+        const messageHash = ethers.hashMessage(cancelMessage);
+        
+        // Recover the address from the signature
+        let recoveredAddress;
+        try {
+            recoveredAddress = ethers.recoverAddress(messageHash, signature);
+        } catch (error) {
+            throw new CustomError("Invalid signature format", { error: error.message });
+        }
+        
+        // Verify that the recovered address matches the account in the request
+        if (recoveredAddress.toLowerCase() !== account.toLowerCase()) {
+            throw new CustomError("Signature verification failed: signer does not match order creator", {
+                orderCreator: account,
+                recoveredSigner: recoveredAddress
+            });
+        }
+        
+        // Step 3: Call order book service to cancel the order
+        const cancelFormData = new FormData();
+        cancelFormData.append('payload', JSON.stringify({
+            orderId: orderId,
+            side: order.side,
+            baseAsset: order.baseAsset,
+            quoteAsset: order.quoteAsset
+        }));
+
+        const cancelResponse = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/cancel_order`, {
+            method: 'POST',
+            body: cancelFormData
+        });
+
+        if (!cancelResponse.ok) {
+            const errorData = await cancelResponse.json();
+            throw new CustomError(errorData.error || `Failed to cancel order: ${cancelResponse.status}`, errorData);
+        }
+
+        const cancelData = await cancelResponse.json();
+        
+        // Step 4: If this was the best order on-chain, update to the next best
+        if (cancelData.wasBestOrder) {
+            // Get the next best order
+            const bestOrderFormData = new FormData();
+            bestOrderFormData.append('payload', JSON.stringify({
+                side: order.side,
+                baseAsset: order.baseAsset,
+                quoteAsset: order.quoteAsset
+            }));
+
+            const bestOrderResponse = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/get_best_order`, {
+                method: 'POST',
+                body: bestOrderFormData
+            });
+
+            if (!bestOrderResponse.ok) {
+                const errorData = await bestOrderResponse.json();
+                throw new CustomError(errorData.error || `Failed to get best order: ${bestOrderResponse.status}`, errorData);
+            }
+
+            const bestOrderData = await bestOrderResponse.json();
+            
+            // If there's a new best order, update it on-chain
+            if (bestOrderData.order && bestOrderData.status_code === 1) {
+                const nextBestOrder = {
+                    orderId: bestOrderData.order.order_id,
+                    account: bestOrderData.order.account,
+                    sqrtPrice: ethers.parseUnits(Math.sqrt(bestOrderData.order.price).toString(), decimal),
+                    amount: ethers.parseUnits(bestOrderData.order.quantity.toString(), decimal),
+                    isBid: bestOrderData.order.side === 'bid',
+                    baseAsset: token_symbol_address_mapping[bestOrderData.order.baseAsset],
+                    quoteAsset: token_symbol_address_mapping[bestOrderData.order.quoteAsset],
+                    quoteAmount: ethers.parseUnits((bestOrderData.order.price * bestOrderData.order.quantity).toString(), decimal),
+                    isValid: true,
+                    timestamp: Date.now().toString()
+                };
+                
+                // Prepare the task
+                const proofOfTask = `UpdateBestPrice-CancelOrder-${orderId}-${nextBestOrder.orderId}-${Date.now()}`;
+                
+                // Send update best order task to contract through AVS
+                const updateResult = await dalService.sendUpdateBestPriceTask(proofOfTask, nextBestOrder, taskDefinitionId.UpdateBestPrice);
+                
+                if (!updateResult) {
+                    throw new CustomError("Failed to update best order on-chain", {});
+                }
+                
+                // Return the cancel data with information about updating the best order
+                return {
+                    ...cancelData,
+                    bestOrderUpdated: true,
+                    newBestOrderId: nextBestOrder.orderId
+                };
+            } else {
+                // No new best order available
+                return {
+                    ...cancelData,
+                    bestOrderUpdated: false,
+                    message: "Order canceled. No new best order available."
+                };
+            }
+        }
+        
+        // Return the cancel data
+        return cancelData;
+        
+    } catch (error) {
+        console.error('Error handling cancel order:', error);
+        throw error;
     }
-
-    const data = await response.json();
-    return data;
 }
 
 async function generateOrderBook(symbol) {
@@ -207,7 +328,7 @@ module.exports = {
     sendFillOrderTask,
     sendUpdateBestPriceTask,
     
-    cancelOrder,
+    handleCancelOrder,
     sendCancelOrderTask,
     
     getBestOrder,

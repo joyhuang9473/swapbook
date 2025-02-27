@@ -59,7 +59,8 @@ def register_order(payload: str = Form(...)):
         # This is the Failure case
         if not process_result["success"]:
             return JSONResponse(content={
-                "message": process_result["data"]
+                "message": process_result["data"],
+                "status_code": 0
             }, status_code=400)
 
         trades, order, task_id, next_best_order = process_result["data"]
@@ -124,8 +125,9 @@ def register_order(payload: str = Form(...)):
         return JSONResponse(content={
             "message": "Order registered successfully",
             "order": order_dict,
-            "nextBestOrder": next_best_order,
-            "taskId": task_id
+            "nextBest": next_best_order,
+            "taskId": task_id,
+            "status_code": 1
         }, status_code=200)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -144,7 +146,7 @@ def cancel_order(payload: str = Form(...)):
 
         # Convert order to a serializable format
         order_dict = {
-            'order_id': int(order_id),
+            'orderId': int(order_id),
             'account': order['account'],
             'price': float(order['price']),
             'quantity': float(order['quantity']),
@@ -160,47 +162,50 @@ def cancel_order(payload: str = Form(...)):
 
         return JSONResponse(content={
             "message": "Order cancelled successfully",
-            "order": order_dict
+            "order": order_dict,
+            "status_code": 1
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# @app.post("/api/order")
-# def get_order(payload: str = Form(...)):
-#     try:
-#         payload_json = json.loads(payload)
-#         order_id = payload_json['orderId']
-#         symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
+@app.post("/api/order")
+def get_order(payload: str = Form(...)):
+    try:
+        payload_json = json.loads(payload)
+        order_id = payload_json['orderId']
+        symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
 
-#         order_book = order_books[symbol]
-#         order = order_book.bids.get_order(order_id) if order_id in order_book.bids.order_map else order_book.asks.get_order(order_id)
+        order_book = order_books[symbol]
+        order = order_book.bids.get_order(order_id) if order_id in order_book.bids.order_map else order_book.asks.get_order(order_id)
 
-#         if order is not None:
-#             order_dict = {
-#                 'order_id': int(order['order_id']) if order['order_id'] is not None else None,
-#                 'account': order['account'],
-#                 'price': float(order['price']),
-#                 'quantity': float(order['quantity']),
-#                 'side': order['side'],
-#                 'baseAsset': order['baseAsset'],
-#                 'quoteAsset': order['quoteAsset'],
-#                 # 'type': order['type'],
-#                 'trade_id': order['trade_id'],
-#                 'trades': [],
-#                 'isValid': True if order['order_id'] is not None else False,
-#             }
+        if order is not None:
+            order_dict = {
+                'orderId': int(order['order_id']) if order['order_id'] is not None else None,
+                'account': order['account'],
+                'price': float(order['price']),
+                'quantity': float(order['quantity']),
+                'side': order['side'],
+                'baseAsset': order['baseAsset'],
+                'quoteAsset': order['quoteAsset'],
+                'trade_id': order['trade_id'],
+                'trades': [],
+                'isValid': True if order['order_id'] is not None else False,
+                'timestamp': order['timestamp']
+            }
 
-#             return JSONResponse(content={
-#                 "message": "Order retrieved successfully",
-#                 "order": order_dict
-#             })
-#         else:
-#             return JSONResponse(content={
-#                 "message": "Order not found",
-#                 "order": None
-#             })
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
+            return JSONResponse(content={
+                "message": "Order retrieved successfully",
+                "order": order_dict,
+                "status_code": 1
+            })
+        else:
+            return JSONResponse(content={
+                "message": "Order not found",
+                "order": None,
+                "status_code": 0
+            })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/orderbook")
 def get_orderbook(payload: str = Form(...)):
@@ -212,8 +217,13 @@ def get_orderbook(payload: str = Form(...)):
             raise HTTPException(status_code=404, detail="Order book not found")
 
         order_book = order_books[symbol]
-
-        return order_book.get_orderbook(payload_json['symbol'])
+        result = order_book.get_orderbook(payload_json['symbol'])
+        
+        return JSONResponse(content={
+            "message": "Order book retrieved successfully",
+            "orderbook": result,
+            "status_code": 1
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -268,6 +278,46 @@ def get_best_order(payload: str = Form(...)):
         return JSONResponse(content={
             "message": "Best order retrieved successfully",
             "order": order_dict
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/check_available_funds")
+def check_available_funds(payload: str = Form(...)):
+    try:
+        payload_json = json.loads(payload)
+        account = payload_json['account']
+        asset = payload_json['asset']
+        
+        # Calculate total locked funds across all order books
+        total_locked_amount = Decimal('0')
+        
+        # Iterate through all order books
+        for symbol, order_book in order_books.items():
+            # Check if this order book involves the asset we're looking for
+            base_asset, quote_asset = symbol.split('_')
+            
+            # Check bids (buying orders)
+            if quote_asset == asset:  # If quote asset matches, check bids
+                for order_id, order in order_book.bids.order_map.items():
+                    if order['account'].lower() == account.lower():
+                        # For bids, the locked amount is price * quantity in quote asset
+                        locked_amount = order['price'] * order['quantity']
+                        total_locked_amount += locked_amount
+            
+            # Check asks (selling orders)
+            if base_asset == asset:  # If base asset matches, check asks
+                for order_id, order in order_book.asks.order_map.items():
+                    if order['account'].lower() == account.lower():
+                        # For asks, the locked amount is just the quantity in base asset
+                        total_locked_amount += order['quantity']
+        
+        return JSONResponse(content={
+            "message": "Available funds checked successfully",
+            "account": account,
+            "asset": asset,
+            "lockedAmount": float(total_locked_amount),
+            "status_code": 1
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
