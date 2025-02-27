@@ -21,6 +21,10 @@ const TOKENS = {
 
 // TODO: need to add signature by user on this stuff so that performer can't fake
 
+// TODO: need to add checks that user has escrowed enough funds
+
+// TODO: need to add lock on order book while order is being settled (+queue?)
+
 router.post("/limitOrder", async (req, res) => {
     try {
         const { account, price, quantity, side, baseAsset, quoteAsset, signature } = req.body;
