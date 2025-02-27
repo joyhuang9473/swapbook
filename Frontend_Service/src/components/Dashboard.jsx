@@ -312,11 +312,19 @@ const Dashboard = () => {
     
     try {
       setIsLoading(true);
-      
+
+      const withdrawalMessage = `Withdraw ${amount} of token ${token.address}`;
+
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [withdrawalMessage, account]
+      });
+
       await orderApi.initiateWithdrawal(
         account,
         token.address,
-        ethers.utils.parseUnits(amount, token.decimals)
+        amount,
+        signature
       );
       
       toast({

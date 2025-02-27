@@ -22,7 +22,13 @@ router.post("/validate", async (req, res) => {
             : new CustomError("Validation failed", { proofOfTask, taskDefinitionId })
         );
     } catch (error) {
-        return res.status(500).send(new CustomError(error.message || "Error in validation", error.data || {}));
+        // Extract only necessary error information
+        const errorData = {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+        };
+        return res.status(500).send(new CustomError(errorData.message || "Error in validation", { error: errorData }));
     }
 })
 

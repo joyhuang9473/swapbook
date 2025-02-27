@@ -2,6 +2,7 @@ require('dotenv').config();
 const taskController = require("./task.controller");
 const { ethers, AbiCoder } = require("ethers");
 const CustomError = require("./utils/validateError");
+const P2POrderBookABI = require("./abi/P2POrderBookABI");
 
 // The validator should:
 // Receive the (proof of task, data, task definition id)
@@ -248,34 +249,41 @@ async function validate(proofOfTask, data, taskDefinitionId) {
 async function validateWithdrawal(proofOfTask, data) {
     try {
         // Parse the withdrawal data
-        const account = ethers.getAddress('0x' + Buffer.from(data.slice(0, 20)).toString('hex'));
-        const asset = ethers.getAddress('0x' + Buffer.from(data.slice(20, 40)).toString('hex'));
-        const amount = ethers.getBigInt('0x' + Buffer.from(data.slice(40, 72)).toString('hex'));
-        
+
+        const withdrawalDataStructSignature = "tuple(address account, address asset, uint256 amount)";
+        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+            [withdrawalDataStructSignature],
+            data
+        );
+        const account = decodedData[0].account;
+        const asset = decodedData[0].asset;
+        const amount = decodedData[0].amount;
+
         // Extract signature from proof of task
         // Format: Withdrawal_<id>_User_<account>_Asset_<asset>_Amount_<amount>_Timestamp_<timestamp>_Signature_<signature>
         const proofParts = proofOfTask.split('_');
         const signature = proofParts[proofParts.indexOf('Signature') + 1];
         const amountStr = proofParts[proofParts.indexOf('Amount') + 1];
-        
+
         // Verify signature
         const withdrawalMessage = `Withdraw ${amountStr} of token ${asset}`;
         const messageHash = ethers.hashMessage(withdrawalMessage);
         const recoveredAddress = ethers.recoverAddress(messageHash, signature);
-        
+
         if (recoveredAddress.toLowerCase() !== account.toLowerCase()) {
             console.error("Signature verification failed for withdrawal");
             return false;
         }
         
+
         // Check if funds are available in escrow
         const avsHookAddress = process.env.AVS_HOOK_ADDRESS;
-        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-        const avsHookContract = new ethers.Contract(avsHookAddress, require('./abi/P2POrderBookABI.js'), provider);
-        
+        const provider = new ethers.JsonRpcProvider(process.env.L2_RPC_URL);
+        const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
+
         // Check on-chain escrow balance
         const escrowedBalance = await avsHookContract.escrowedFunds(account, asset);
-        
+
         if (escrowedBalance < amount) {
             console.error("Insufficient funds in escrow for withdrawal");
             return false;
@@ -299,7 +307,7 @@ async function validateWithdrawal(proofOfTask, data) {
         }
         
         const fundData = await response.json();
-        
+
         if (fundData.lockedAmount && 
             ethers.parseUnits(fundData.lockedAmount.toString(), 
                               asset === taskController.token_symbol_address_mapping['WETH'] ? 18 : 6) + amount > escrowedBalance) {

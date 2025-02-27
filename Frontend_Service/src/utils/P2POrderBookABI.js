@@ -388,6 +388,44 @@ const P2POrderBookABI = [
     "outputs": [],
     "stateMutability": "pure",
     "type": "function"
+  },
+  {
+    "type": "event",
+    "name": "PartialFillOrder",
+    "inputs": [
+      {
+        "name": "takerOrderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "makerOrderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CompleteFillOrder",
+    "inputs": [
+      {
+        "name": "makerOrderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "takerOrderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
   }
 ];
 
