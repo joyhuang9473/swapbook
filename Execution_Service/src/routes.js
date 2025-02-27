@@ -498,7 +498,14 @@ router.post("/limitOrder", async (req, res) => {
         }
 
         // Function to pass task onto next step (validation service then chain)
-        const result = await dalService.sendTaskToContract(proofOfTask, messageData, data.taskId);
+        let finalTaskDefinitionId = 0
+        if (data.taskId == 1) {
+            finalTaskDefinitionId = taskController.taskDefinitionId.FillOrder
+        } else if (data.taskId == 2 || data.taskId == 3 || data.taskId == 4) {
+            finalTaskDefinitionId = taskController.taskDefinitionId.UpdateBestPrice
+        }
+
+        const result = await dalService.sendTaskToContract(proofOfTask, messageData, finalTaskDefinitionId);
 
         if (result) {
             return res.status(200).send(new CustomResponse(data));
