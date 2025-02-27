@@ -24,43 +24,43 @@ const token_address_symbol_mapping = {
     '0x8b2f38De30098bA09d69bd080A3814F4aE536A22': 'USDC',
 }
 
-async function createOrder(account, price, quantity, side, baseAsset, quoteAsset, timestamp=0) {
-    // Create form data
-    const formData = new FormData();
-    if (timestamp !== 0) {
-        formData.append('payload', JSON.stringify({
-            account: account,
-            price: Number(price),
-            quantity: Number(quantity),
-            side: side,
-            baseAsset: baseAsset,
-            quoteAsset: quoteAsset,
-            timestamp: timestamp
-        }));
-    } else {
-        formData.append('payload', JSON.stringify({
-            account: account,
-            price: Number(price),
-            quantity: Number(quantity),
-            side: side,
-            baseAsset: baseAsset,
-            quoteAsset: quoteAsset
-        }));
-    }
+// async function createOrder(account, price, quantity, side, baseAsset, quoteAsset, timestamp=0) {
+//     // Create form data
+//     const formData = new FormData();
+//     if (timestamp !== 0) {
+//         formData.append('payload', JSON.stringify({
+//             account: account,
+//             price: Number(price),
+//             quantity: Number(quantity),
+//             side: side,
+//             baseAsset: baseAsset,
+//             quoteAsset: quoteAsset,
+//             timestamp: timestamp
+//         }));
+//     } else {
+//         formData.append('payload', JSON.stringify({
+//             account: account,
+//             price: Number(price),
+//             quantity: Number(quantity),
+//             side: side,
+//             baseAsset: baseAsset,
+//             quoteAsset: quoteAsset
+//         }));
+//     }
 
-    const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/register_order`, {
-        method: 'POST',
-        body: formData
-    });
+//     const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/register_order`, {
+//         method: 'POST',
+//         body: formData
+//     });
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to create order: ${response.status}`);
-    }
+//     if (!response.ok) {
+//         const errorData = await response.json();
+//         throw new Error(errorData.error || `Failed to create order: ${response.status}`);
+//     }
 
-    let data = await response.json();
-    return data;
-}
+//     let data = await response.json();
+//     return data;
+// }
 
 async function cancelOrder(orderId, side, baseAsset, quoteAsset) {
     // Create form data

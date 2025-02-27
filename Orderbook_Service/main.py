@@ -30,8 +30,45 @@ def register_order(payload: str = Form(...)):
             'quoteAsset' : payload_json['quoteAsset']
         }
 
-        trades, order = order_book.process_order(_order, False, False)
+        process_result = order_book.process_order(_order, False, False)
+        
+        # Determine task id
+        # Task 1: Order does not cross spread and is not best price
+            # trades should be empty if we did not cross the spread
+            # order should be None if it's not the best
+        # Task 2: Order does not cross spread but is best price
+            # trades should be empty if we did not cross the spread
+            # order should equal what we passed in if it's the best
+        # Task 3: Order crosses spread and partially fills best price
+            # task id included in process order response
+        # Task 4: Order crosses spread and completely fills best price (params: next best price order on opposite side)
+            # task id included in process order response
+            # next best included in process order response
+        # Failure: Order crosses spread and fills more than best price (API call fails)
 
+        # This is the Failure case
+        if not process_result["success"]:
+            return JSONResponse(content={
+                "message": process_result["message"]
+            }, status_code=0)
+
+        trades, order, task_id, next_best_order = process_result["data"]
+        # Note: task_id only set for partial and complete order fills
+
+        if not trades:
+            assert task_id == 0
+
+            # Did not cross the spread
+            if order is None:
+                # Order is not best price (TASK 1)
+                task_id = 1
+            else:
+                # Order is best price (TASK 2)
+                task_id = 2
+
+        assert order is not None
+
+        # Left as before, likely largely redundant
         converted_trades = []
         for trade in trades:
             # [trade_id, side, head_order.order_id, new_book_quantity]
@@ -58,33 +95,28 @@ def register_order(payload: str = Form(...)):
             }
             converted_trades.append(converted_trade)
 
-        if order is None:
-            order = _order.copy()
-            order['order_id'] = 1234567890 # fake order_id
-
-        # override timestamp if provided by the client
-        order['timestamp'] = payload_json['timestamp'] if 'timestamp' in payload_json else order['timestamp']
-
         # Convert order to a serializable format
+        # This should be the same info as _order
         order_dict = {
-            'order_id': int(order['order_id']) if order['order_id'] is not None else None,
+            'order_id': int(order['order_id']),
             'account': order['account'],
             'price': float(order['price']),
             'quantity': float(order['quantity']),
             'side': order['side'],
             'baseAsset': order['baseAsset'],
             'quoteAsset': order['quoteAsset'],
-            # 'type': order['type'],
             'trade_id': order['trade_id'],
             'trades': converted_trades,
-            'isValid': True if order['order_id'] is not None else False,
+            'isValid': True, # What is this? Prev: True if order['order_id'] is not None else False
             'timestamp': order['timestamp']
         }
 
         return JSONResponse(content={
             "message": "Order registered successfully",
-            "order": order_dict
-        })
+            "order": order_dict,
+            "nextBestOrder": next_best_order,
+            "taskId": task_id
+        }, status_code=200)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
