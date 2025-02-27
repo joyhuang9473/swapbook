@@ -356,24 +356,25 @@ router.post("/limitOrder", async (req, res) => {
             quoteAsset: req.body.quoteAsset,
             signature: req.body.signature
         };
-
+        
         // TODO: add check that signature corresponds to (price, quantity, side, baseAsset, quoteAsset) signed by account sender
-
-        const timestamp = Date.now(); // Get the current timestamp in milliseconds
+        if (orderData['signature'] == undefined) {
+            orderData['signature'] = "";
+        }
 
         const formData = new FormData();
 
-        const quoteSymbol = taskController.token_address_symbol_mapping[quoteAsset];
-        const baseSymbol = taskController.token_address_symbol_mapping[baseAsset];
+        const quoteSymbol = taskController.token_address_symbol_mapping[orderData['quoteAsset']];
+        const baseSymbol = taskController.token_address_symbol_mapping[orderData['baseAsset']];
 
         formData.append('payload', JSON.stringify({
-            account: account,
-            price: Number(price),
-            quantity: Number(quantity),
-            side: side,
-            baseAsset: baseAsset,
-            quoteAsset: quoteAsset,
-            timestamp: timestamp
+            account: orderData['account'],
+            price: Number(orderData['price']),
+            quantity: Number(orderData['quantity']),
+            side: orderData['side'],
+            baseAsset: orderData['baseAsset'],
+            quoteAsset: orderData['quoteAsset'],
+            timestamp: Number(Date.now())
         }));
 
         // Send order to order book and get result, one of:
@@ -418,27 +419,26 @@ router.post("/limitOrder", async (req, res) => {
         // Define Order struct to be passed to smart contract
         const order = {
             orderId: data.order.orderId,
-            account: account,
+            account: data.order.account,
             sqrtPrice: ethers.parseUnits(
-                // First calculate sqrt, then format to limited decimal places to avoid overflow
-                Math.sqrt(price).toFixed(TOKENS[quoteSymbol].decimals),
+                Math.sqrt(data.order.price).toString(),
                 TOKENS[quoteSymbol].decimals
             ),
-            amount: ethers.parseUnits(quantity.toString(), TOKENS[baseSymbol].decimals),
-            isBid: side == 'bid',
+            amount: ethers.parseUnits(data.order.quantity.toString(), TOKENS[baseSymbol].decimals),
+            isBid: data.order.side == 'bid',
             baseAsset: TOKENS[baseSymbol].address,
             quoteAsset: TOKENS[quoteSymbol].address,
-            quoteAmount: ethers.parseUnits(
+            quoteAmount: ethers.parseUnits( 
                 // Format price*quantity to limited decimal places as well
-                (price * quantity).toFixed(TOKENS[quoteSymbol].decimals),
+                (data.order.price * data.order.quantity).toString(),
                 TOKENS[quoteSymbol].decimals
             ),
             isValid: true,
-            timestamp: timestamp.toString()
+            timestamp: ethers.parseUnits(data.order.timestamp.toString(), TOKENS[baseSymbol].decimals)
         }
 
         // Proof of Task from Execution Service is compared with Proof of Task from Validation Service later 
-        const proofOfTask = `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
+        const proofOfTask = `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${data.order.timestamp.toString()}-Signature_${orderData['signature']}`;
         
         // Format data to send on-chain
         // In case of task 1, nothing
@@ -458,16 +458,16 @@ router.post("/limitOrder", async (req, res) => {
         } else {
             // Task 4: need order and next best
             const nextBestOrder = {
-                orderId: data.nextBest.orderId,
-                account: data.nextBest.account,
-                sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
-                amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseSymbol].decimals),
-                isBid: data.nextBest.side == 'bid',
+                orderId: data.nextBestOrder.orderId,
+                account: data.nextBestOrder.account,
+                sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBestOrder.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
+                amount: ethers.parseUnits(data.nextBestOrder.quantity.toString(), TOKENS[baseSymbol].decimals),
+                isBid: data.nextBestOrder.side == 'bid',
                 baseAsset: TOKENS[baseSymbol].address,
                 quoteAsset: TOKENS[quoteSymbol].address,
-                quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteSymbol].decimals),
+                quoteAmount: ethers.parseUnits((data.nextBestOrder.price * data.nextBestOrder.quantity).toString(), TOKENS[quoteSymbol].decimals),
                 isValid: true, // Not sure what this is for (prev: data['order']['isValid'])
-                timestamp: timestamp.toString()
+                timestamp: ethers.parseUnits(data.nextBestOrder.timestamp, TOKENS[baseSymbol].decimals)
             };
 
             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature, orderStructSignature], [order, nextBestOrder]);

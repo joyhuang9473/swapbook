@@ -1,6 +1,7 @@
 require('dotenv').config();
 const taskController = require("./task.controller");
 const { ethers, AbiCoder } = require("ethers");
+const CustomError = require("./utils/validateError");
 
 // The validator should:
 // Receive the (proof of task, data, task definition id)
@@ -16,16 +17,53 @@ const { ethers, AbiCoder } = require("ethers");
 // Task 4: Order crosses spread and completely fills best price (params: next best price order on opposite side)
 // Failure: Order crosses spread and fills more than best price (API call fails)
 
+const TOKENS = {
+    "WETH": {
+        "address": "0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018",
+        "decimals": 18
+    },
+    "USDC": {
+        "address": "0x8b2f38De30098bA09d69bd080A3814F4aE536A22",
+        "decimals": 6
+    }
+}
+
 async function validate(proofOfTask, data, taskDefinitionId) {
     try {
-        // Check sender signature
-
-        const proofParts = proofOfTask.split("_")[3];
-        const timestampStr = proofParts[2];
+        const proofParts = proofOfTask.split("-");
+        const timestampPart = proofParts[2];
+        const timestamp = timestampPart.split("_")[1];
         const signatureStr = proofParts[3];
 
-        const timestamp = timestampStr.split("-")[1];
-        const signature = signatureStr.split("-")[1];
+        // TODO: Check sender signature
+        let signature = signatureStr.split("_")[1];
+        if (signature == undefined) {
+            signature = "";
+        }
+
+        const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
+
+        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+            [orderStructSignature],
+            data
+        );
+
+        const quoteSymbol = taskController.token_address_symbol_mapping[decodedData[0].quoteAsset];
+        const baseSymbol = taskController.token_address_symbol_mapping[decodedData[0].baseAsset];
+
+        const order = {
+            orderId: decodedData[0].orderId.toString(),
+            account: decodedData[0].account,
+            price: Math.pow(Number(ethers.formatUnits(decodedData[0].sqrtPrice, TOKENS[quoteSymbol].decimals)), 2),
+            quantity: Number(ethers.formatUnits(decodedData[0].amount, TOKENS[baseSymbol].decimals)),
+            side: decodedData[0].isBid ? 'bid' : 'ask',
+            baseAsset: decodedData[0].baseAsset,
+            quoteAsset: decodedData[0].quoteAsset,
+            quoteAmount: Number(ethers.formatUnits(decodedData[0].quoteAmount, TOKENS[quoteSymbol].decimals)),
+            isValid: decodedData[0].isValid,
+            timestamp: Number(ethers.formatUnits(decodedData[0].timestamp, TOKENS[baseSymbol].decimals))
+        }
+
 
         // TODO: add check that signature corresponds to data in order signed by data.account
 
@@ -34,13 +72,12 @@ async function validate(proofOfTask, data, taskDefinitionId) {
         const formData = new FormData();
 
         formData.append('payload', JSON.stringify({
-            account: account,
-            price: Number(price),
-            quantity: Number(quantity),
-            side: side,
-            baseAsset: baseAsset,
-            quoteAsset: quoteAsset,
-            timestamp: timestamp
+            account: order['account'],
+            price: Number(order['price']),
+            quantity: Number(order['quantity']),
+            side: order['side'],
+            baseAsset: order['baseAsset'],
+            quoteAsset: order['quoteAsset']
         }));
 
         const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/register_order`, {
@@ -49,38 +86,36 @@ async function validate(proofOfTask, data, taskDefinitionId) {
         });
         const new_data = await response.json(); // if it doesn't work try JSON.parse(JSON.stringify(data))
 
-
         // Run same checks as Execution Service
 
         // Check nothing's failed badly
         if (!response.ok) {
-            const errorMessage = data.error || data.message || `Failed to create order: HTTP status ${response.status}`;
-            throw new CustomError(errorMessage, data);
+            const errorMessage = new_data.error || new_data.message || `Failed to create order: HTTP status ${response.status}`;
+            throw new CustomError(errorMessage, new_data);
         }
 
         // Check we haven't failed to enter order into order book (e.g. if incoming order is larger than best order)
-        if (data.status_code == 0) {
-            throw new CustomError(`Failed to create order: ${data.message}`, data);
+        if (new_data.status_code == 0) {
+            throw new CustomError(`Failed to create order: ${new_data.message}`, new_data);
         }
 
         // Check task ID determined is between 1 and 4 inclusive
-        if (data.taskId > 4 || data.taskId < 1) {
-            throw new CustomError(`Invalid task ID returned from Order Book Service: ${data.taskId}`, data);
+        if (new_data.taskId > 4 || new_data.taskId < 1) {
+            throw new CustomError(`Invalid task ID returned from Order Book Service: ${new_data.taskId}`, new_data);
         }
 
         // Check the necessary data is included correctly from the Order Book (only task 4)
-        if (data.taskId == 4 && data.nextBest == undefined) {
+        if (new_data.taskId == 4 && new_data.nextBest == undefined) {
             // Complete order fill, need details of next best order on other side
-            throw new CustomError(`Next best order details required for Complete Order Fill`, data);
+            throw new CustomError(`Next best order details required for Complete Order Fill`, new_data);
         }
 
         // Should include order ID for newly inserted order
         if (new_data.order.orderId == undefined) {
-            throw new CustomError(`Order ID not included`, data);
+            throw new CustomError(`Order ID not included`, new_data);
         }
 
         // Get new proof of task
-
         const new_proofOfTask = `Task_${new_data.taskId}-Order_${new_data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
 
         return proofOfTask === new_proofOfTask; // isApproved
