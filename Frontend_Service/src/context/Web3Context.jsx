@@ -5,8 +5,7 @@ import { ethers } from 'ethers';
 
 // Contract ABI and addresses
 import P2POrderBookABI from '../utils/P2POrderBookABI';
-
-const config = require('./config');
+import config from '../../config.js';
 
 // Network configuration - Polygon Amoy
 const CHAIN_ID = config.network.chainId; // Polygon Amoy testnet

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import config from '../../config.json';
+import config from '../../config.js';
 
 const API_URL = process.env.NODE_ENV === 'production' 
   ? config.api.baseUrl.production

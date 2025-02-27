@@ -46,7 +46,7 @@ import {
 import { useWeb3 } from '../context/Web3Context';
 import { orderApi } from '../utils/api';
 import { ethers } from 'ethers';
-import config from '../../config.json';
+import { config } from '../../config';
 
 // Use token definitions from config file
 const TOKENS = config.tokens;
