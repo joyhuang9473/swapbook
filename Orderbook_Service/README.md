@@ -22,7 +22,7 @@ The Orderbook Service is responsible for:
 ## Setup
 
 ### Prerequisites
-- Python 3.8+
+- Python (3.8+)
 - FastAPI
 
 ### Installation

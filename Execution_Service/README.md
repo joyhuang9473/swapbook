@@ -15,14 +15,14 @@ The Execution Service is a critical component of the P2P orderbook system, actin
 
 - **CreateOrder**: Initiates the creation of a new order
 - **CancelOrder**: Processes order cancellation requests
-- **FillOrder**: Handles order filling (matching and execution)
+- **FillOrder**: Handles order filling (partial or complete, matching and execution)
 - **UpdateBestPrice**: Updates the best price in the orderbook
 - **ProcessWithdrawal**: Handles withdrawal requests
 
 ## Setup
 
 ### Prerequisites
-- Node.js v22.6.0 or later
+- Node.js (>= v22.6.0)
 - Yarn or npm
 
 ### Installation

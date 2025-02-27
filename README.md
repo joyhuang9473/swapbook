@@ -1,25 +1,24 @@
-# Uniswap V4 Hook AVS P2P Orderbook
+# SwapBook - Bringing TradFi Efficiency On-Chain
 
-A decentralized peer-to-peer orderbook system built with EigenLayer's AVS (Actively Validated Service) and future Uniswap V4 Hook integration, enabling better execution prices by routing trades between the orderbook and AMMs.
+A decentralized peer-to-peer orderbook system built with EigenLayer's AVS (Autonomous Verifiable Service) using Othentic and Uniswap V4 Hook integration, enabling better execution prices by routing trades between the orderbook and AMMs.
+
+## Motivation
+
+The reason that TradFi (the largest industry in the world by far) operates on order books rather than AMMs is because they're better. They're more capital-efficient for market makers, provide better prices for traders, and are resistant to AMM flaws like impermanent loss. However, AMMs are the norm on-chain due to the computational intensiveness of running order books, which would cost a fortune in gas fees or just be plain impossible at scale on many chains.
+
+Fortunately, EigenLayer's AVS tech allows you to run computation off-chain and verify its validity through a network of validator nodes, reaching consensus and trustlessly triggering a transaction on-chain with the result of the computation. A perfect use case is order books.
+
+SwapBook is an order book that runs on an AVS and with on-chain settlement. The secret sauce? We use Uniswap V4 hooks to loop into AMMs. When you go to swap on a pool using our hook, before the swap goes through, if you can get a better price on the order book than you can through the pool, our hook reroutes your order to trade with the P2P oroder book instead of the AMM, getting you better prices with lower fees.
 
 ## Overview
 
-This project implements a decentralized orderbook system that processes orders off-chain while settling trades on-chain. It leverages EigenLayer's AVS infrastructure for secure off-chain computation and will integrate with Uniswap V4 Hooks to offer improved trading between the orderbook and AMMs.
+This project implements a decentralized orderbook system that processes orders off-chain while settling trades on-chain. It leverages EigenLayer's AVS infrastructure for secure off-chain computation and integrates with Uniswap V4 Hooks to offer improved trading between the orderbook and AMMs.
 
 Key features:
 - **Decentralized Orderbook**: Maintains order books for token pairs
 - **Off-chain Computation**: Processes orders through an AVS network
 - **On-chain Settlement**: Securely settles trades on-chain
-- **Future Uniswap V4 Hook Integration**: Will route AMM swaps to the orderbook when better prices are available
-
-### Task Definitions
-
-The system defines the following task types:
-- **UpdateBestPrice (1)**: Updates the best price in the orderbook
-- **FillOrder (2)**: Fills an order
-- **ProcessWithdrawal (3)**: Processes a withdrawal request
-- **CancelOrder (4)**: Cancels an existing order
-- **CreateOrder (5)**: Creates a new order
+- **Uniswap V4 Hook Integration**: Route AMM swaps to the orderbook when better prices are available
 
 ## Architecture
 
@@ -28,11 +27,11 @@ The system consists of several interconnected services:
 1. **Orderbook Service**: Maintains the order book state, matching engine, and order processing logic
 2. **Execution Service**: Verifies user signatures, validates actions, and triggers AVS tasks
 3. **Validation Service**: Validates task execution from the Execution Service
-4. **Smart Contracts**: Handles on-chain settlement and fund management
+4. **Smart Contract**: Handles on-chain settlement and escrow management
 5. **Frontend Service**: User interface for interacting with the system
-6. **AVS Infrastructure**: EigenLayer's infrastructure for secure off-chain computation (Aggregator and Attesters)
+6. **Othentic AVS Infrastructure**: Othentics's infrastructure for secure off-chain computation
 
-When a user places an order:
+When a user places an order through the P2P order book:
 1. The request is sent to the Execution Service
 2. The Execution Service verifies the signature and order validity
 3. The Execution Service submits the order to the Orderbook Service
@@ -40,18 +39,22 @@ When a user places an order:
 5. Attester nodes validate the task through the Validation Service
 6. Valid tasks are executed on-chain through the smart contract
 
+When a user triggers a swap with a hook-enabled Uniswap V4 pool:
+1. The hook catches the order before the swap executes and checks for better pricing in the P2P order book
+2. The hook uses this as a market order to directly fill the best priced limit order in the P2P order book
+
 ## Prerequisites
 
-- Node.js (v 22.6.0 or later)
-- Docker and Docker Compose
-- Foundry (for smart contract development)
+- Node.js (>= v22.6.0)
+- Docker
+- Foundry
 
 ## Installation
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/uniswap-v4-hook-avs-ours.git
-   cd uniswap-v4-hook-avs-ours
+   git clone https://github.com/joyhuang9473/swapbook.git
+   cd swapbook
    ```
 
 2. Install dependencies:
@@ -108,9 +111,9 @@ This will launch:
 
 ## Usage
 
-1. Access the frontend at `http://localhost:8080`
+1. Access the frontend at `http://localhost:8080` (or other port if specified in logs)
 2. Connect your wallet
-3. Place, cancel or fill orders through the interface
+3. Place, cancel or fill orders through the interface, or manage your escrow account
 
 ## Development
 

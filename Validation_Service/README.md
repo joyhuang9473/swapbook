@@ -22,7 +22,7 @@ The service validates different types of tasks:
 ## Setup
 
 ### Prerequisites
-- Node.js v22.6.0 or later
+- Node.js (>= v22.6.0)
 - Yarn or npm
 
 ### Installation

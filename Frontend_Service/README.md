@@ -22,7 +22,7 @@ The Frontend Service provides a user-friendly interface for:
 ## Setup
 
 ### Prerequisites
-- Node.js v18+ 
+- Node.js (v18+)
 - Yarn or npm
 
 ### Installation
