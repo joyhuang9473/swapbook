@@ -186,6 +186,7 @@ services:
       - WETH_ADDRESS=${WETH_ADDRESS}
       - USDC_ADDRESS=${USDC_ADDRESS}
       - P2P_ORDERBOOK_ADDRESS=${P2P_ORDERBOOK_ADDRESS}
+      - EXECUTION_SERVICE_ADDRESS=10.8.0.101
     ports:
       - "8080:8080"
     networks:
