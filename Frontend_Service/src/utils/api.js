@@ -56,9 +56,9 @@ export const orderApi = {
       const formData = new FormData();
       formData.append('payload', JSON.stringify({ symbol }));
       
-      const response = await api.post(config.api.endpoints.orderBook, formData, {
+      const response = await api.post(config.api.endpoints.orderBook, { symbol }, {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/json',
         },
       });
       return response.data;

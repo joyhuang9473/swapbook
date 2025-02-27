@@ -89,8 +89,9 @@ const Dashboard = () => {
     try {
       setIsLoading(true);
       const response = await orderApi.getOrderBook(selectedPair);
-      const bids = response.bids
-      const asks = response.asks
+
+      const bids = response.data.bids
+      const asks = response.data.asks
 
       setOrderBook( { bids: bids, asks: asks });
     } catch (error) {

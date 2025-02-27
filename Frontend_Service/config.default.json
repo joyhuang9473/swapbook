@@ -20,8 +20,8 @@
   },
   "api": {
     "baseUrl": {
-      "development": "http://localhost:8000",
-      "production": "http://localhost:8000"
+      "development": "http://localhost:4003",
+      "production": "http://localhost:4003"
     },
     "endpoints": {
       "limitOrder": "/limitOrder",
