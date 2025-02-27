@@ -23,10 +23,10 @@ export const config = {
       production: import.meta.env.EXECUTION_SERVICE_ADDRESS || defaultConfig.api.baseUrl.production
     },
     endpoints: {
-      limitOrder: "/limitOrder",
-      cancelOrder: "/cancelOrder",
+      limitOrder: "/api/limitOrder",
+      cancelOrder: "/api/cancelOrder",
       orderBook: "/api/orderbook",
-      initiateWithdrawal: "/initiateWithdrawal"
+      initiateWithdrawal: "/api/initiateWithdrawal"
     }
   }
 };
