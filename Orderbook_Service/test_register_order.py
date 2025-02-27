@@ -10,96 +10,96 @@ orderBook = dict(
     priceChangeIndicator="up",
     asks=[
         {
-            "price": 95520.40,
+            "price": 2552.40,
             "amount": 0.00186,
-            "total": 177.66794
+            "total": 4.74746
         },
         {
-            "price": 95500.00,
+            "price": 2550.00,
             "amount": 0.00063,
-            "total": 60.16500
+            "total": 1.60650
         },
         {
-            "price": 95468.86,
+            "price": 2546.86,
             "amount": 0.01534,
-            "total": 1464.49231
+            "total": 39.06883
         },
         {
-            "price": 95452.25,
+            "price": 2545.25,
             "amount": 0.00078,
-            "total": 74.45275
+            "total": 1.98530
         },
         {
-            "price": 95451.93,
+            "price": 2545.93,
             "amount": 0.01569,
-            "total": 1497.64078
+            "total": 39.94564
         },
         {
-            "price": 95416.10,
+            "price": 2541.10,
             "amount": 0.00186,
-            "total": 177.47395
+            "total": 4.72645
         },
         {
-            "price": 95362.25,
+            "price": 2536.25,
             "amount": 0.00078,
-            "total": 74.38255
+            "total": 1.97828
         },
         {
-            "price": 95362.09,
+            "price": 2536.09,
             "amount": 0.96831,
-            "total": 92340.06537
+            "total": 2455.71365
         },
         {
-            "price": 95362.08,
+            "price": 2536.08,
             "amount": 0.58338,
-            "total": 55632.33023
+            "total": 1479.50240
         }
     ],
     bids=[
         {
-            "price": 95260.33,
+            "price": 2526.33,
             "amount": 0.00131,
-            "total": 124.79103
+            "total": 3.30949
         },
         {
-            "price": 95260.32,
+            "price": 2526.32,
             "amount": 1.88091,
-            "total": 179176.08849
+            "total": 4751.65491
         },
         {
-            "price": 95260.31,
+            "price": 2526.31,
             "amount": 0.00095,
-            "total": 90.49729
+            "total": 2.39999
         },
         {
-            "price": 95260.29,
+            "price": 2526.29,
             "amount": 0.00104,
-            "total": 99.07070
+            "total": 2.62734
         },
         {
-            "price": 95260.27,
+            "price": 2526.27,
             "amount": 0.00002,
-            "total": 1.90521
+            "total": 0.05053
         },
         {
-            "price": 95260.26,
+            "price": 2526.26,
             "amount": 0.00002,
-            "total": 1.90521
+            "total": 0.05053
         },
         {
-            "price": 95251.44,
+            "price": 2525.44,
             "amount": 0.00002,
-            "total": 1.90503
+            "total": 0.05051
         },
         {
-            "price": 95249.92,
+            "price": 2524.92,
             "amount": 0.00369,
-            "total": 351.47220
+            "total": 9.31695
         },
         {
-            "price": 95244.73,
+            "price": 2524.73,
             "amount": 0.01538,
-            "total": 1464.86395
+            "total": 38.83035
         }
     ]
 )
