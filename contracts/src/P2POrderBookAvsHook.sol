@@ -13,6 +13,8 @@ import {IAttestationCenter} from "./interfaces/IAttestationCenter.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 struct Order {
     uint256 orderId;
@@ -33,7 +35,7 @@ struct BestPrices {
 }
 
 // Limitation: For now, we store just best bid and best ask on-chain (for each token)
-contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
+contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
     using Address for address payable;
 
     address public immutable ATTESTATION_CENTER;
@@ -91,13 +93,29 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
     error EscrowBalanceMismatch();
 
-    constructor(address _attestationCenterAddress, IPoolManager _poolManager) BaseHook(_poolManager) {
+    error ReentrancyError();
+
+    error NotAuthorized();
+
+    constructor(address _attestationCenterAddress, IPoolManager _poolManager) BaseHook(_poolManager) Ownable(msg.sender) {
         ATTESTATION_CENTER = _attestationCenterAddress;
+    }
+
+    // ============== ADMIN FUNCTIONS ==============
+
+    /**
+     * Emergency function to recover tokens sent to the contract by mistake
+     * Can only be called by the contract owner
+     */
+    function recoverTokens(address token, uint256 amount) external onlyOwner nonReentrant {
+        require(token != address(0), "Invalid token");
+        bool success = IERC20(token).transfer(owner(), amount);
+        if (!success) revert UnsuccessfulTransfer();
     }
 
     // ============== ESCROW MANAGEMENT ==============
 
-    function escrow(address asset, uint256 amount) external {
+    function escrow(address asset, uint256 amount) external nonReentrant {
         // Check allowance
         uint256 allowance = IERC20(asset).allowance(msg.sender, address(this));
         if (allowance < amount) revert InsufficientAllowance();
@@ -183,7 +201,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
 
     // ============== TASK FUNCTIONS ==============
 
-    function taskUpdateBest(bytes calldata taskData) private {
+    function taskUpdateBest(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
         (Order memory order,) = extractOrder(taskData, 0);
 
@@ -208,7 +226,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
         );
     }
 
-    function taskPartialFillOrder(bytes calldata taskData) private {
+    function taskPartialFillOrder(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
         (Order memory order,) = extractOrder(taskData, 0);
 
@@ -264,7 +282,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     }
 
 
-    function taskCompleteFillOrder(bytes calldata taskData) private {
+    function taskCompleteFillOrder(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
         (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
 
@@ -315,7 +333,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook {
     }
 
 
-    function taskProcessWithdrawal(bytes calldata taskData) private {
+    function taskProcessWithdrawal(bytes calldata taskData) private nonReentrant {
         (address account, address asset, uint256 amount) = extractWithdrawalData(taskData);
         mapping(address => uint256) storage accountEscrow = escrowedFunds[account];
 
