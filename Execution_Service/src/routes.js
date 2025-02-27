@@ -77,6 +77,8 @@ router.post("/limitOrder", async (req, res) => {
             throw new CustomError(`Order ID not included`, data);
         }
 
+        return res.status(200).send(new CustomResponse(data));
+
         // Define Order struct to be passed to smart contract
         const order = {
             orderId: data.order.orderId,
@@ -90,8 +92,6 @@ router.post("/limitOrder", async (req, res) => {
             isValid: true, // Not sure what this is for (prev: data['order']['isValid']),
             timestamp: timestamp.toString()
         }
-
-        return res.status(200).send(new CustomResponse(order));
 
         // // Proof of Task from Execution Service is compared with Proof of Task from Validation Service later 
         // const proofOfTask = `Task_${data.taskId}-Order_${order.orderId}-Timestamp_${timestamp}`;
