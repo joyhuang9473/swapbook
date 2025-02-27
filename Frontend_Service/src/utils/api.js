@@ -35,13 +35,11 @@ export const orderApi = {
   },
   
   // Cancel an order
-  cancelOrder: async (orderId, side, baseAsset, quoteAsset) => {
+  cancelOrder: async (orderId, signature) => {
     try {
       const response = await api.post(config.api.endpoints.cancelOrder, {
         orderId,
-        side,
-        baseAsset,
-        quoteAsset
+        signature
       });
       return response.data;
     } catch (error) {

@@ -217,19 +217,19 @@ const Dashboard = () => {
   };
   
   // Cancel an order
-  const cancelOrder = async (orderId, orderSide) => {
+  const cancelOrder = async (orderId) => {
     if (!active || !account) return;
     
     try {
       setIsLoading(true);
-      const { baseAsset, quoteAsset } = getPairTokens();
       
-      await orderApi.cancelOrder(
-        orderId,
-        orderSide,
-        baseAsset,
-        quoteAsset
-      );
+      const cancelMessage = `Cancel order ${orderId}`;
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [cancelMessage, account]
+      });
+  
+      await orderApi.cancelOrder(orderId, signature);
       
       toast({
         title: 'Success',
@@ -506,7 +506,7 @@ const Dashboard = () => {
                                 <Button 
                                   size="xs" 
                                   colorScheme="red" 
-                                  onClick={() => cancelOrder(order.orderId, order.isBid ? 'bid' : 'ask')}
+                                  onClick={() => cancelOrder(order.orderId)}
                                   isLoading={isLoading}
                                 >
                                   Cancel

@@ -2,6 +2,7 @@
 require("dotenv").config();
 const dalService = require("./dal.service.js");
 const { ethers } = require("ethers");
+const CustomError = require("./utils/validateError");
 
 const taskDefinitionId = {
     Origin: 0,
@@ -72,7 +73,7 @@ async function handleCancelOrder(orderData) {
             orderId: orderId
         }));
 
-        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/get_order`, {
+        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/order`, {
             method: 'POST',
             body: formData
         });
@@ -87,7 +88,7 @@ async function handleCancelOrder(orderData) {
         if (!orderInfo.order || orderInfo.status_code === 0) {
             throw new CustomError("Order not found", { orderId });
         }
-        
+
         const order = orderInfo.order;
         const account = order.account;
         
@@ -97,7 +98,7 @@ async function handleCancelOrder(orderData) {
         
         // Get message hash - must match the exact method used in frontend with MetaMask
         const messageHash = ethers.hashMessage(cancelMessage);
-        
+
         // Recover the address from the signature
         let recoveredAddress;
         try {
@@ -105,7 +106,7 @@ async function handleCancelOrder(orderData) {
         } catch (error) {
             throw new CustomError("Invalid signature format", { error: error.message });
         }
-        
+
         // Verify that the recovered address matches the account in the request
         if (recoveredAddress.toLowerCase() !== account.toLowerCase()) {
             throw new CustomError("Signature verification failed: signer does not match order creator", {
@@ -113,7 +114,7 @@ async function handleCancelOrder(orderData) {
                 recoveredSigner: recoveredAddress
             });
         }
-        
+
         // Step 3: Call order book service to cancel the order
         const cancelFormData = new FormData();
         cancelFormData.append('payload', JSON.stringify({
@@ -134,7 +135,7 @@ async function handleCancelOrder(orderData) {
         }
 
         const cancelData = await cancelResponse.json();
-        
+
         // Step 4: If this was the best order on-chain, update to the next best
         if (cancelData.wasBestOrder) {
             // Get the next best order
@@ -177,11 +178,11 @@ async function handleCancelOrder(orderData) {
                 
                 // Send update best order task to contract through AVS
                 const updateResult = await dalService.sendUpdateBestPriceTask(proofOfTask, nextBestOrder, taskDefinitionId.UpdateBestPrice);
-                
+
                 if (!updateResult) {
                     throw new CustomError("Failed to update best order on-chain", {});
                 }
-                
+
                 // Return the cancel data with information about updating the best order
                 return {
                     ...cancelData,

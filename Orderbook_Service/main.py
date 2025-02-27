@@ -147,17 +147,16 @@ def cancel_order(payload: str = Form(...)):
         # Convert order to a serializable format
         order_dict = {
             'orderId': int(order_id),
-            'account': order['account'],
-            'price': float(order['price']),
-            'quantity': float(order['quantity']),
-            'side': order['side'],
-            'baseAsset': order['baseAsset'],
-            'quoteAsset': order['quoteAsset'],
-            # 'type': order['type'],
-            'trade_id': order['trade_id'],
+            'account': order.account,
+            'price': float(order.price),
+            'quantity': float(order.quantity),
+            'side': order.side,
+            'baseAsset': order.baseAsset,
+            'quoteAsset': order.quoteAsset,
+            'trade_id': order.trade_id,
             'trades': [],
             'isValid': False,
-            'timestamp': order['timestamp']
+            'timestamp': order.timestamp
         }
 
         return JSONResponse(content={
@@ -173,24 +172,25 @@ def get_order(payload: str = Form(...)):
     try:
         payload_json = json.loads(payload)
         order_id = payload_json['orderId']
-        symbol = "%s_%s" % (payload_json["baseAsset"], payload_json["quoteAsset"])
 
-        order_book = order_books[symbol]
-        order = order_book.bids.get_order(order_id) if order_id in order_book.bids.order_map else order_book.asks.get_order(order_id)
+        order = None
+        for symbol, order_book in order_books.items():
+            if order_id in order_book.bids.order_map or order_id in order_book.asks.order_map:
+                order = order_book.bids.get_order(order_id) if order_id in order_book.bids.order_map else order_book.asks.get_order(order_id)
 
         if order is not None:
             order_dict = {
-                'orderId': int(order['order_id']) if order['order_id'] is not None else None,
-                'account': order['account'],
-                'price': float(order['price']),
-                'quantity': float(order['quantity']),
-                'side': order['side'],
-                'baseAsset': order['baseAsset'],
-                'quoteAsset': order['quoteAsset'],
-                'trade_id': order['trade_id'],
+                'orderId': int(order.order_id) if order.order_id is not None else None,
+                'account': order.account,
+                'price': float(order.price),
+                'quantity': float(order.quantity),
+                'side': order.side,
+                'baseAsset': order.baseAsset,
+                'quoteAsset': order.quoteAsset,
+                'trade_id': order.trade_id,
                 'trades': [],
-                'isValid': True if order['order_id'] is not None else False,
-                'timestamp': order['timestamp']
+                'isValid': True if order.order_id is not None else False,
+                'timestamp': order.timestamp
             }
 
             return JSONResponse(content={
