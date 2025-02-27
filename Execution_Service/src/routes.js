@@ -436,7 +436,7 @@ router.post("/limitOrder", async (req, res) => {
             orderId: data.order.orderId,
             account: data.order.account,
             sqrtPrice: ethers.parseUnits(
-                Math.sqrt(data.order.price).toString(),
+                Math.sqrt(data.order.price).toFixed(6),
                 TOKENS[quoteSymbol].decimals
             ),
             amount: ethers.parseUnits(data.order.quantity.toString(), TOKENS[baseSymbol].decimals),
