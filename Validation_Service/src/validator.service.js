@@ -81,7 +81,7 @@ async function validate(proofOfTask, data, taskDefinitionId) {
 
         // Get new proof of task
 
-        const new_proofOfTask = `Task_${new_data.taskId}-Order_${new_order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
+        const new_proofOfTask = `Task_${new_data.taskId}-Order_${new_data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
 
         return proofOfTask === new_proofOfTask; // isApproved
 
