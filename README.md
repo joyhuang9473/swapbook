@@ -2,6 +2,8 @@
 
 A decentralized peer-to-peer orderbook system built with EigenLayer's AVS (Autonomous Verifiable Service) using Othentic and Uniswap V4 Hook integration, enabling better execution prices by routing trades between the orderbook and AMMs.
 
+To quickly see how it comes together check out our [Architecture Diagram](assets/InteractionFlow.png), [Placing Order Flow](assets/PlaceOrderFlow.png), and [Uniswap Hook Flow](assets/HookFlow.png).
+
 ## Motivation
 
 The reason that TradFi (the largest industry in the world by far) operates on order books rather than AMMs is because they're better. They're more capital-efficient for market makers, provide better prices for traders, and are resistant to AMM flaws like impermanent loss. However, AMMs are the norm on-chain due to the computational intensiveness of running order books, which would cost a fortune in gas fees or just be plain impossible at scale on many chains.
@@ -20,17 +22,13 @@ Key features:
 - **On-chain Settlement**: Securely settles trades on-chain
 - **Uniswap V4 Hook Integration**: Route AMM swaps to the orderbook when better prices are available
 
-## Architecture
+## Architecture (see diagram [here](assets/InteractionFlow.png))
 
-**Component interaction:**
-![Interaction Flow Diagram](assets/InteractionFlow.png)
+**Placing an order:**
+![Placing Order Flow](assets/PlaceOrderFlow.png)
 
-**Flow for placing an order through the AVS:**
-![Place Order Flow Diagram](assets/PlaceOrderFlow.png)
-
-**Flow for placing an order through the Uniswap Pool:**
-![Hook Diagram](assets/HookFlow.png)
-
+**Filling an order through Uniswap:**
+![Uniswap Hook Flow](assets/HookFlow.png)
 
 The system consists of several interconnected services:
 
