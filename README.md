@@ -23,7 +23,7 @@ Key features:
 ## Architecture
 
 **Component interaction:**
-![Interaction Flow Diagram](assets/InteractionFlow.svg)
+![Interaction Flow Diagram](assets/InteractionFlow.png)
 
 **Flow for placing an order through the AVS:**
 ![Place Order Flow Diagram](assets/PlaceOrderFlow.png)
