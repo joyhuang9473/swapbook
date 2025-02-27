@@ -19,10 +19,17 @@ const TOKENS = {
     }
 }
 
+// TODO: need to add signature by user on this stuff so that performer can't fake
+
+// TODO: need to add checks that user has escrowed enough funds
+
+// TODO: need to add lock on order book while order is being settled (+queue?)
 
 router.post("/limitOrder", async (req, res) => {
     try {
-        const { account, price, quantity, side, baseAsset, quoteAsset } = req.body;
+        const { account, price, quantity, side, baseAsset, quoteAsset, signature } = req.body;
+
+        // TODO: add check that signature corresponds to (price, quantity, side, baseAsset, quoteAsset) signed by account sender
 
         const timestamp = Date.now(); // Get the current timestamp in milliseconds
 
@@ -77,8 +84,6 @@ router.post("/limitOrder", async (req, res) => {
             throw new CustomError(`Order ID not included`, data);
         }
 
-        return res.status(200).send(new CustomResponse(data));
-
         // Define Order struct to be passed to smart contract
         const order = {
             orderId: data.order.orderId,
@@ -93,75 +98,75 @@ router.post("/limitOrder", async (req, res) => {
             timestamp: timestamp.toString()
         }
 
-        // // Proof of Task from Execution Service is compared with Proof of Task from Validation Service later 
-        // const proofOfTask = `Task_${data.taskId}-Order_${order.orderId}-Timestamp_${timestamp}`;
+        // Proof of Task from Execution Service is compared with Proof of Task from Validation Service later 
+        const proofOfTask = `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
         
-        // // Format data to send on-chain
-        // // In case of task 1, nothing
-        // // In case of tasks 2 and 3, order
-        // // In case of task 4, order and next best order
+        // Format data to send on-chain
+        // In case of task 1, nothing
+        // In case of tasks 2 and 3, order
+        // In case of task 4, order and next best order
 
-        // const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
+        const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
 
-        // let messageData;
+        let messageData;
 
-        // if (data.taskId == 1) {
-        //     // Task 1: need nothing (no-op)
-        //     messageData = "";
-        // } else if (data.taskId == 2 || data.taskId == 3) {
-        //     // Task 2: need order
-        //     messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
-        // } else {
-        //     // Task 4: need order and next best
-        //     const nextBestOrder = {
-        //         orderId: data.nextBest.orderId,
-        //         account: data.nextBest.account,
-        //         sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteAsset].decimals), // quote asset won't change
-        //         amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseAsset].decimals),
-        //         isBid: data.nextBest.side == 'bid',
-        //         baseAsset: TOKENS[baseAsset].address,
-        //         quoteAsset: TOKENS[quoteAsset].address,
-        //         quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteAsset].decimals),
-        //         isValid: true, // Not sure what this is for (prev: data['order']['isValid'])
-        //         timestamp: timestamp.toString()
-        //     };
+        if (data.taskId == 1) {
+            // Task 1: need nothing (no-op)
+            messageData = "";
+        } else if (data.taskId == 2 || data.taskId == 3) {
+            // Task 2: need order
+            messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
+        } else {
+            // Task 4: need order and next best
+            const nextBestOrder = {
+                orderId: data.nextBest.orderId,
+                account: data.nextBest.account,
+                sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteAsset].decimals), // quote asset won't change
+                amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseAsset].decimals),
+                isBid: data.nextBest.side == 'bid',
+                baseAsset: TOKENS[baseAsset].address,
+                quoteAsset: TOKENS[quoteAsset].address,
+                quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteAsset].decimals),
+                isValid: true, // Not sure what this is for (prev: data['order']['isValid'])
+                timestamp: timestamp.toString()
+            };
             
-        //     messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature, orderStructSignature], [order, nextBestOrder]);
-        // }
+            messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature, orderStructSignature], [order, nextBestOrder]);
+        }
         
-        // // Function to pass task onto next step (validation service then chain)
-        // const result = await dalService.sendTaskToContract(proofOfTask, messageData, data.taskId);
+        // Function to pass task onto next step (validation service then chain)
+        const result = await dalService.sendTaskToContract(proofOfTask, messageData, data.taskId);
 
-        // if (result) {
-        //     return res.status(200).send(new CustomResponse(data));
-        // } else {
-        //     return res.status(500).send(new CustomError("Error in forwarding task from Performer", {}));
+        if (result) {
+            return res.status(200).send(new CustomResponse(data));
+        } else {
+            return res.status(500).send(new CustomError("Error in forwarding task from Performer", {}));
+        }
+
+        // check if the order is filled
+        // if (data['order']['trades'] && data['order']['trades'].length > 0) {
+        //     var fillOrderData = JSON.parse(JSON.stringify(data)); // Create a deep copy
+
+        //     for (const trade of fillOrderData['order']['trades']) {
+        //         // trade: {'timestamp': 2, 'price': 50000.0, 'quantity': 1.0, 'time': 2, 'party1': ['0x1234567890123456789012345678901234567891', 'ask', 1, None], 'party2': ['0x1234567890123456789012345678901234567890', 'bid', None, None]}
+        //         // party: [trade_id, side, head_order.order_id, new_book_quantity]
+        //         fillOrderData['order']['quantity'] = trade['quantity'];
+
+
+        //         // MAY FAIL HERE: just do one part for now
+        //         result |= await taskController.sendFillOrderTask(fillOrderData);
+
+        //         if (!result) {
+        //             return res.status(500).send(new CustomError("sendFillOrderTask went wrong", {}));
+        //         }
+        //     }
+
+        //     // update the best price
+        //     // MAY FAIL HERE: just do one part for now
+        //     const opposite_side = side === 'bid' ? 'ask' : 'bid';
+        //     const _data = await taskController.getBestOrder(baseAsset, quoteAsset, opposite_side);
+        //     result |= await taskController.sendUpdateBestPriceTask(_data);
         // }
-
-        // // check if the order is filled
-        // // if (data['order']['trades'] && data['order']['trades'].length > 0) {
-        // //     var fillOrderData = JSON.parse(JSON.stringify(data)); // Create a deep copy
-
-        // //     for (const trade of fillOrderData['order']['trades']) {
-        // //         // trade: {'timestamp': 2, 'price': 50000.0, 'quantity': 1.0, 'time': 2, 'party1': ['0x1234567890123456789012345678901234567891', 'ask', 1, None], 'party2': ['0x1234567890123456789012345678901234567890', 'bid', None, None]}
-        // //         // party: [trade_id, side, head_order.order_id, new_book_quantity]
-        // //         fillOrderData['order']['quantity'] = trade['quantity'];
-
-
-        // //         // MAY FAIL HERE: just do one part for now
-        // //         result |= await taskController.sendFillOrderTask(fillOrderData);
-
-        // //         if (!result) {
-        // //             return res.status(500).send(new CustomError("sendFillOrderTask went wrong", {}));
-        // //         }
-        // //     }
-
-        // //     // update the best price
-        // //     // MAY FAIL HERE: just do one part for now
-        // //     const opposite_side = side === 'bid' ? 'ask' : 'bid';
-        // //     const _data = await taskController.getBestOrder(baseAsset, quoteAsset, opposite_side);
-        // //     result |= await taskController.sendUpdateBestPriceTask(_data);
-        // // }
 
     } catch (error) {
         console.error('Error processing limit order:', error);
