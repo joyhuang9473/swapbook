@@ -30,27 +30,37 @@ contract DeployTestUser1 is Script {
         IERC20 _tokenB = IERC20(tokenB);
 
         // Check balance before operations
-        uint256 balance = _tokenA.balanceOf(msg.sender);
-        console.log("Token A balance:", balance);
+        uint256 balanceA = _tokenA.balanceOf(msg.sender);
+        uint256 balanceB = _tokenB.balanceOf(msg.sender);
+        console.log("Token A balance:", balanceA);
+        console.log("Token B balance:", balanceB);
         console.log("Sender address:", msg.sender);
         console.log("Hook address:", avsHook);
 
-        uint256 amount = 1*1e18;
-        console.log("Amount to escrow:", amount);
+        uint256 amountA = 1*1e18;
+        uint256 amountB = 3000*1e18;
+        console.log("Amount to escrow A:", amountA);
+        console.log("Amount to escrow B:", amountB);
 
         // Check allowance before approve
-        uint256 allowanceBefore = _tokenA.allowance(msg.sender, avsHook);
-        console.log("Allowance before approve:", allowanceBefore);
+        uint256 allowanceBeforeA = _tokenA.allowance(msg.sender, avsHook);
+        uint256 allowanceBeforeB = _tokenB.allowance(msg.sender, avsHook);
+        console.log("Allowance before approve A:", allowanceBeforeA);
+        console.log("Allowance before approve B:", allowanceBeforeB);
 
         // Approve the hook to spend tokenA
-        _tokenA.approve(avsHook, amount);
+        _tokenA.approve(avsHook, amountA);
+        _tokenB.approve(avsHook, amountB);
 
         // Check allowance after approve
-        uint256 allowanceAfter = _tokenA.allowance(msg.sender, avsHook);
-        console.log("Allowance after approve:", allowanceAfter);
+        uint256 allowanceAfterA = _tokenA.allowance(msg.sender, avsHook);
+        uint256 allowanceAfterB = _tokenB.allowance(msg.sender, avsHook);
+        console.log("Allowance after approve A:", allowanceAfterA);
+        console.log("Allowance after approve B:", allowanceAfterB);
 
         // Then call escrow
-        hook.escrow(tokenA, amount);
+        hook.escrow(tokenA, amountA);
+        hook.escrow(tokenB, amountB);
 
         vm.stopBroadcast();
     }

@@ -51,7 +51,7 @@ step3_transferTokenToTestUser:
 .PHONY: step4_testUser1
 step4_testUser1:
 	$(START_LOG)
-	@forge script ./script/DeployTestUser1.s.sol --broadcast \
+	@forge script ./script/DeployTestUser.s.sol --broadcast \
 		--rpc-url $(L2_RPC) \
 		--private-key $(USER1_PRIVATE_KEY) \
 		-v \
@@ -61,7 +61,7 @@ step4_testUser1:
 .PHONY: step5_testUser2
 step5_testUser2:
 	$(START_LOG)
-	@forge script ./script/DeployTestUser2.s.sol --broadcast \
+	@forge script ./script/DeployTestUser.s.sol --broadcast \
 		--rpc-url $(L2_RPC) \
 		--private-key $(USER2_PRIVATE_KEY) \
 		-v \
