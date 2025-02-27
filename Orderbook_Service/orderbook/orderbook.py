@@ -25,6 +25,8 @@ class OrderBook(object):
     def process_order(self, quote, from_data, verbose):
         order_type = quote['type']
         order_in_book = None
+        task_id = 0
+        next_best_order = None
         if from_data:
             self.time = quote['timestamp']
         else:
@@ -38,10 +40,19 @@ class OrderBook(object):
             trades = self.process_market_order(quote, verbose)
         elif order_type == 'limit':
             quote['price'] = Decimal(quote['price'])
-            trades, order_in_book = self.process_limit_order(quote, from_data, verbose)
+            try:
+                trades, order_in_book, task_id, next_best_order = self.process_limit_order(quote, from_data, verbose)
+            except Exception as e:
+                return {
+                    "success": False,
+                    "message": str(e)
+                }
         else:
             sys.exit("order_type for process_order() is neither 'market' or 'limit'")
-        return trades, order_in_book
+        return {
+            "success": True,
+            "data": [trades, order_in_book, task_id, next_best_order]
+        }
 
     def process_order_list(self, side, order_list, quantity_still_to_trade, quote, verbose):
         '''
@@ -115,12 +126,41 @@ class OrderBook(object):
         return trades
 
     def process_limit_order(self, quote, from_data, verbose):
+        # Note: modified so that only one trade can happen
+        # If the quote quantity is less than the best opposing side order quantity, partial fill
+        # If the quote quantity is the same as the best opposing side order quantity, complete fill
+        # If the quote quatity is larger than the best opposing side order quantity, reject this quote
+
         order_in_book = None
         trades = []
         quantity_to_trade = quote['quantity']
         side = quote['side']
         price = quote['price']
+
+        task_id = 0 # only set for partial or complete fills
+        next_best_order = None
+
+        if quantity_to_trade <= 0:
+            raise Exception("No orders of size 0 or less")
+
         if side == 'bid':
+            # If we have asks, and we cross the spread, and we're covering more than one order, reject
+            if (self.asks and price >= self.asks.min_price()):
+                min_price_orders = self.asks.min_price_list()
+                if (quantity_to_trade < min_price_orders[0]['quantity']):
+                    # Partial fill
+                    task_id = 3
+                elif (quantity_to_trade == min_price_orders[0]['quantity']):
+                    # Complete fill
+                    task_id = 4
+                    if (len(min_price_orders) > 1):
+                        next_best_order = min_price_orders[1]
+                else:
+                    # More than one order covered, reject this for now
+                    # This is disabled for now as we only track and lock funds for the best order on-chain
+                    raise Exception("Not currently accepting orders larger than best order")
+
+            # Some of this is redundant now but should still work
             while (self.asks and price >= self.asks.min_price() and quantity_to_trade > 0):
                 best_price_asks = self.asks.min_price_list()
                 quantity_to_trade, new_trades = self.process_order_list('ask', best_price_asks, quantity_to_trade, quote, verbose)
@@ -133,6 +173,23 @@ class OrderBook(object):
                 self.bids.insert_order(quote)
                 order_in_book = quote
         elif side == 'ask':
+            # If we have bids, and we cross the spread, and we're covering more than one order, reject
+            if (self.bids and price >= self.bids.min_price()):
+                max_price_orders = self.bids.min_price_list()
+                if (quantity_to_trade < max_price_orders[0]['quantity']):
+                    # Partial fill
+                    task_id = 3
+                elif (quantity_to_trade == max_price_orders[0]['quantity']):
+                    # Complete fill
+                    task_id = 4
+                    if (len(max_price_orders) > 1):
+                        next_best_order = max_price_orders[1]
+                else:
+                    # More than one order covered, reject this for now
+                    # This is disabled for now as we only track and lock funds for the best order on-chain
+                    raise Exception("Not currently accepting orders larger than best order")
+
+            # Partly redundant but should still work
             while (self.bids and price <= self.bids.max_price() and quantity_to_trade > 0):
                 best_price_bids = self.bids.max_price_list()
                 quantity_to_trade, new_trades = self.process_order_list('bid', best_price_bids, quantity_to_trade, quote, verbose)
@@ -146,7 +203,10 @@ class OrderBook(object):
                 order_in_book = quote
         else:
             sys.exit('process_limit_order() given neither "bid" nor "ask"')
-        return trades, order_in_book
+        
+        assert len(trades) == 1
+
+        return trades, order_in_book, task_id, next_best_order
 
     def cancel_order(self, side, order_id, time=None):
         if time:
