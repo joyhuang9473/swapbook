@@ -175,8 +175,8 @@ class OrderBook(object):
                 order_in_book = quote
         elif side == 'ask':
             # If we have bids, and we cross the spread, and we're covering more than one order, reject
-            if (self.bids and price >= self.bids.min_price()):
-                max_price_orders = self.bids.min_price_list()
+            if (self.bids and price <= self.bids.max_price()):
+                max_price_orders = self.bids.max_price_list()
                 if (quantity_to_trade < max_price_orders[0]['quantity']):
                     # Partial fill
                     task_id = 3
