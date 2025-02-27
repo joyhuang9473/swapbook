@@ -1,123 +1,95 @@
-# Uniswap V4 Hook AVS Ours
+# SwapBook - Bringing TradFi Efficiency On-Chain
 
-REPO DESCRIPTION
+A decentralized peer-to-peer orderbook system built with EigenLayer's AVS (Autonomous Verifiable Service) using Othentic and Uniswap V4 Hook integration, enabling better execution prices by routing trades between the orderbook and AMMs.
 
-taskDefinitionId:
-- 1: MakeOrder
-- 2: FillOrder
-- 3: CancelOrder
+To quickly see how it comes together check out our [Architecture Diagram](assets/InteractionFlow.png), [Placing Order Flow](assets/PlaceOrderFlow.png), and [Uniswap Hook Flow](assets/HookFlow.png).
 
----
+## Motivation
 
-## Table of Contents
+The reason that TradFi (the largest industry in the world by far) operates on order books rather than AMMs is because they're better. They're more capital-efficient for market makers, provide better prices for traders, and are resistant to AMM flaws like impermanent loss. However, AMMs are the norm on-chain due to the computational intensiveness of running order books, which would cost a fortune in gas fees or just be plain impossible at scale on many chains.
 
-1. [Overview](#overview)
-2. [Project Structure](#project-structure)
-3. [Architecture](#architecture)
-4. [Prerequisites](#prerequisites)
-5. [Installation](#installation)
-6. [Usage](#usage)
+Fortunately, EigenLayer's AVS tech allows you to run computation off-chain and verify its validity through a network of validator nodes, reaching consensus and trustlessly triggering a transaction on-chain with the result of the computation. A perfect use case is order books.
 
----
+SwapBook is an order book that runs on an AVS and with on-chain settlement. The secret sauce? We use Uniswap V4 hooks to loop into AMMs. When you go to swap on a pool using our hook, before the swap goes through, if you can get a better price on the order book than you can through the pool, our hook reroutes your order to trade with the P2P oroder book instead of the AMM, getting you better prices with lower fees.
 
 ## Overview
 
-This repository showcases how to utilize Uniswap V4 hooks with Othentic Stack to create dynamic fee AVS that address the inefficiencies of static fee models in swap contracts. It calculates the optimal fee based on Market Volatility(low volatility = lower fees, high volatility = higher fees)
+This project implements a decentralized orderbook system that processes orders off-chain while settling trades on-chain. It leverages EigenLayer's AVS infrastructure for secure off-chain computation and integrates with Uniswap V4 Hooks to offer improved trading between the orderbook and AMMs.
 
-### Features
+Key features:
+- **Decentralized Orderbook**: Maintains order books for token pairs
+- **Off-chain Computation**: Processes orders through an AVS network
+- **On-chain Settlement**: Securely settles trades on-chain
+- **Uniswap V4 Hook Integration**: Route AMM swaps to the orderbook when better prices are available
 
-- **Containerised deployment:** Simplifies deployment and scaling.
-- **Prometheus and Grafana integration:** Enables real-time monitoring and observability.
+## Architecture (see diagram [here](assets/InteractionFlow.png))
 
-## Project Structure
+**Placing an order:**
+![Placing Order Flow](assets/PlaceOrderFlow.png)
 
-```mdx
-📂 simple-price-oracle-avs-example
-├── 📂 Execution_Service         # Implements Fee Generation logic - Express JS Backend
-│   ├── 📂 config/
-│   │   └── app.config.js        # An Express.js app setup with dotenv, and a task controller route for handling `/task` endpoints.
-│   ├── 📂 src/
-│   │   └── dal.service.js       # A module that interacts with Pinata for IPFS uploads
-│   │   ├── oracle.service.js    # A utility module to fetch the volatility of the cryptocurrency pair from the Binance API
-│   │   ├── task.controller.js   # An Express.js router handling a `/execute` POST endpoint
-│   │   ├── 📂 utils             # Defines two custom classes, CustomResponse and CustomError, for standardizing API responses
-│   ├── Dockerfile               # A Dockerfile that sets up a Node.js (22.6) environment, exposes port 8080, and runs the application via index.js
-|   ├── index.js                 # A Node.js server entry point that initializes the DAL service, loads the app configuration, and starts the server on the specified port
-│   └── package.json             # Node.js dependencies and scripts
-│
-├── 📂 Validation_Service         # Implements task validation logic - Express JS Backend
-│   ├── 📂 config/
-│   │   └── app.config.js         # An Express.js app setup with a task controller route for handling `/task` endpoints.
-│   ├── 📂 src/
-│   │   └── dal.service.js        # A module that interacts with Pinata for IPFS uploads
-│   │   ├── oracle.service.js     # A utility module to fetch the current volatility of a cryptocurrency pair from the Binance API
-│   │   ├── task.controller.js    # An Express.js router handling a `/validate` POST endpoint
-│   │   ├── validator.service.js  # A validation module that checks if a task result from IPFS matches the ETH/USDT price within a 5% margin.
-│   │   ├── 📂 utils              # Defines two custom classes, CustomResponse and CustomError, for standardizing API responses.
-│   ├── Dockerfile                # A Dockerfile that sets up a Node.js (22.6) environment, exposes port 8080, and runs the application via index.js.
-|   ├── index.js                  # A Node.js server entry point that initializes the DAL service, loads the app configuration, and starts the server on the specified port.
-│   └── package.json              # Node.js dependencies and scripts
-│
-├── 📂 Contracts                  # AVS Logic and Uniswap V4 Hooks contract
+**Filling an order through Uniswap:**
+![Uniswap Hook Flow](assets/HookFlow.png)
 
-├── 📂 grafana                    # Grafana monitoring configuration
-├── docker-compose.yml            # Docker setup for Operator Nodes (Performer, Attesters, Aggregator), Execution Service, Validation Service, and monitoring tools
-├── .env.example                  # An example .env file containing configuration details and contract addresses
-├── README.md                     # Project documentation
-└── prometheus.yaml               # Prometheus configuration for logs
-```
+The system consists of several interconnected services:
 
-## Architecture
-![image](https://github.com/user-attachments/assets/211726f7-f2c8-45ea-8408-6767a9d92943)
+1. **Orderbook Service**: Maintains the order book state, matching engine, and order processing logic
+2. **Execution Service**: Verifies user signatures, validates actions, and triggers AVS tasks
+3. **Validation Service**: Validates task execution from the Execution Service
+4. **Smart Contract**: Handles on-chain settlement and escrow management
+5. **Frontend Service**: User interface for interacting with the system
+6. **Othentic AVS Infrastructure**: Othentics's infrastructure for secure off-chain computation
 
-The Performer node executes tasks using the Task Execution Service and sends the results to the p2p network.
+When a user places an order through the P2P order book:
+1. The request is sent to the Execution Service
+2. The Execution Service verifies the signature and order validity
+3. The Execution Service submits the order to the Orderbook Service
+4. The Execution Service triggers a task in the AVS
+5. Attester nodes validate the task through the Validation Service
+6. Valid tasks are executed on-chain through the smart contract
 
-Attester Nodes validate task execution through the Validation Service. Based on the Validation Service's response, attesters sign the tasks. In this AVS:
-
-Task Execution logic:
-- Fetch the ETH/USDT volatility.
-- Calculate swap fee
-- Store the result in IPFS.
-- Share the IPFS CID as proof.
-
-Validation Service logic:
-- Retrieve the fee from IPFS using the CID.
-- Calculate the expected ETH/USDT fee.
-- Validate by comparing the actual and expected prices within 5% margin.
----
+When a user triggers a swap with a hook-enabled Uniswap V4 pool:
+1. The hook catches the order before the swap executes and checks for better pricing in the P2P order book
+2. The hook uses this as a market order to directly fill the best priced limit order in the P2P order book
 
 ## Prerequisites
 
-- Node.js (v 22.6.0 )
+- Node.js (>= v22.6.0)
+- Docker
 - Foundry
-- [Yarn](https://yarnpkg.com/)
-- [Docker](https://docs.docker.com/engine/install/)
 
 ## Installation
 
 1. Clone the repository:
-
    ```bash
-   git clone git clone https://github.com/Othentic-Labs/avs-examples.git
-   cd avs-examples/uniswap-v4-hook-avs-example
+   git clone https://github.com/joyhuang9473/swapbook.git
+   cd swapbook
    ```
 
-2. Install Othentic CLI:
-
+2. Install dependencies:
    ```bash
+   # Install Othentic CLI (for AVS)
    npm i -g @othentic/othentic-cli
    ```
 
-## Usage
-1. Create a .env file and include the deployed contract addresses and private keys for the operators. If you are unfamiliar with AVS, Checkout the [Quickstart guide](https://docs.othentic.xyz/main/avs-framework/quick-start).
+3. Create a `.env` file in the root directory using `.env.example` as a template:
+   ```bash
+   cp .env.example .env
+   ```
 
-2. Deploy the DynamicFeesAvsHook Contract: To use hooks, deploy an instance of the `DynamicFeesAvsHook contract` by navigating to the `contracts` directory. 
+4. Update the `.env` file with your specific configuration values:
+   - Private keys for operators
+   - RPC URLs
+   - Contract addresses
+   - Other required parameters
+
+## Smart Contract Deployment
+
+Deploy the P2POrderBookAvsHook contract (if not already deployed):
 
 ```bash
-# Either source .env or replace variables in command
 cd contracts/
 forge install
-forge script script/DynamicFeesAvsHookDeploy.s.sol:DynamicFeesAvsHookDeploy \
+forge script script/P2POrderBookAvsHookDeploy.s.sol:P2POrderBookAvsHookDeploy \
  --rpc-url $L2_RPC \
  --private-key $PRIVATE_KEY \
  --broadcast -vvvv \
@@ -127,18 +99,46 @@ forge script script/DynamicFeesAvsHookDeploy.s.sol:DynamicFeesAvsHookDeploy \
  --verifier-url $L2_VERIFIER_URL \
  --sig="run(address,address)" \
  $ATTESTATION_CENTER_ADDRESS $POOL_MANAGER_ADDRESS
- ```
+```
 
-3. Once the contract is deployed, return to the root of the repository and start the Docker Compose configuration:
+## Running the System
+
+Start all services using Docker Compose:
+
 ```bash
 docker-compose up --build
 ```
-> [!NOTE]
-> Building the images might take a few minutes
+
+This will launch:
+- Orderbook Service
+- Execution Service
+- Validation Service
+- Frontend Service
+- AVS Infrastructure (Aggregator and Attesters)
+- Monitoring tools (Prometheus and Grafana)
 
 ## Usage
 
-Follow the steps in the official documentation's [Quickstart](https://docs.othentic.xyz/main/avs-framework/quick-start#steps) Guide for setup and deployment.
+1. Access the frontend at `http://localhost:8080` (or other port if specified in logs)
+2. Connect your wallet
+3. Place, cancel or fill orders through the interface, or manage your escrow account
 
-Happy Building! 🚀
+## Development
+
+For development information, see each service's README for specific instructions:
+- [Execution Service](./Execution_Service/README.md)
+- [Validation Service](./Validation_Service/README.md)
+- [Orderbook Service](./Orderbook_Service/README.md)
+- [Frontend Service](./Frontend_Service/README.md)
+- [Smart Contracts](./contracts/README.md)
+
+## Monitoring
+
+The system includes Prometheus and Grafana for monitoring:
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (default credentials: admin/admin)
+
+## License
+
+[MIT License](LICENSE)
 
