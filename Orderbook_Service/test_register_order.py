@@ -4,8 +4,8 @@ import json
 url = 'http://0.0.0.0:8000/api/register_order'
 
 orderBook = dict(
-    baseAsset="WETH",
-    quoteAsset="USDC",
+    baseAsset="0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018",
+    quoteAsset="0x8b2f38De30098bA09d69bd080A3814F4aE536A22",
     lastTradePrice=95362.08,
     priceChangeIndicator="up",
     asks=[
