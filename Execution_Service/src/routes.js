@@ -4,6 +4,7 @@ const { Router } = require("express");
 const CustomError = require("./utils/validateError");
 const CustomResponse = require("./utils/validateResponse");
 const { ethers, AbiCoder } = require("ethers");
+const dalService = require("./dal.service.js");
 
 const router = Router();
 
@@ -34,6 +35,9 @@ router.post("/limitOrder", async (req, res) => {
         const timestamp = Date.now(); // Get the current timestamp in milliseconds
 
         const formData = new FormData();
+
+        const quoteSymbol = taskController.token_address_symbol_mapping[quoteAsset];
+        const baseSymbol = taskController.token_address_symbol_mapping[baseAsset];
 
         formData.append('payload', JSON.stringify({
             account: account,
@@ -88,13 +92,21 @@ router.post("/limitOrder", async (req, res) => {
         const order = {
             orderId: data.order.orderId,
             account: account,
-            sqrtPrice: ethers.parseUnits(Math.sqrt(price).toString(), TOKENS[quoteAsset].decimals), // sqrt price used to compare with on-chain prices (e.g. on an AMM)
-            amount: ethers.parseUnits(quantity.toString(), TOKENS[baseAsset].decimals),
+            sqrtPrice: ethers.parseUnits(
+                // First calculate sqrt, then format to limited decimal places to avoid overflow
+                Math.sqrt(price).toFixed(TOKENS[quoteSymbol].decimals),
+                TOKENS[quoteSymbol].decimals
+            ),
+            amount: ethers.parseUnits(quantity.toString(), TOKENS[baseSymbol].decimals),
             isBid: side == 'bid',
-            baseAsset: TOKENS[baseAsset].address,
-            quoteAsset: TOKENS[quoteAsset].address,
-            quoteAmount: ethers.parseUnits((price * quantity).toString(), TOKENS[quoteAsset].decimals),
-            isValid: true, // Not sure what this is for (prev: data['order']['isValid']),
+            baseAsset: TOKENS[baseSymbol].address,
+            quoteAsset: TOKENS[quoteSymbol].address,
+            quoteAmount: ethers.parseUnits(
+                // Format price*quantity to limited decimal places as well
+                (price * quantity).toFixed(TOKENS[quoteSymbol].decimals),
+                TOKENS[quoteSymbol].decimals
+            ),
+            isValid: true,
             timestamp: timestamp.toString()
         }
 
@@ -121,19 +133,19 @@ router.post("/limitOrder", async (req, res) => {
             const nextBestOrder = {
                 orderId: data.nextBest.orderId,
                 account: data.nextBest.account,
-                sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteAsset].decimals), // quote asset won't change
-                amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseAsset].decimals),
+                sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
+                amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseSymbol].decimals),
                 isBid: data.nextBest.side == 'bid',
-                baseAsset: TOKENS[baseAsset].address,
-                quoteAsset: TOKENS[quoteAsset].address,
-                quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteAsset].decimals),
+                baseAsset: TOKENS[baseSymbol].address,
+                quoteAsset: TOKENS[quoteSymbol].address,
+                quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteSymbol].decimals),
                 isValid: true, // Not sure what this is for (prev: data['order']['isValid'])
                 timestamp: timestamp.toString()
             };
-            
+
             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature, orderStructSignature], [order, nextBestOrder]);
         }
-        
+
         // Function to pass task onto next step (validation service then chain)
         const result = await dalService.sendTaskToContract(proofOfTask, messageData, data.taskId);
 
