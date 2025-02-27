@@ -88,7 +88,8 @@ const Dashboard = () => {
     if (!active) return;
     try {
       setIsLoading(true);
-      const response = await orderApi.getOrderBook(selectedPair);
+      const { baseAsset, quoteAsset } = getPairTokens();
+      const response = await orderApi.getOrderBook(`${baseAsset}_${quoteAsset}`);
 
       const bids = response.data.bids
       const asks = response.data.asks
