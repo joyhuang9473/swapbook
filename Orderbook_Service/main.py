@@ -6,6 +6,8 @@ import json
 import uvicorn
 from decimal import Decimal
 import time
+from orderbook import OrderBook
+
 order_books = {}  # Dictionary to store multiple order books, keyed by symbol
 app = FastAPI()
 
@@ -214,11 +216,13 @@ def get_orderbook(payload: str = Form(...)):
         symbol = payload_json['symbol']
 
         if symbol not in order_books:
-            raise HTTPException(status_code=404, detail="Order book not found")
+            order_book = OrderBook()
+            order_books[symbol] = order_book
+        else:
+            order_book = order_books[symbol]
 
-        order_book = order_books[symbol]
         result = order_book.get_orderbook(payload_json['symbol'])
-        
+
         return JSONResponse(content={
             "message": "Order book retrieved successfully",
             "orderbook": result,
