@@ -391,4 +391,4 @@ const P2POrderBookABI = [
   }
 ];
 
-export default P2POrderBookABI; 
+module.exports = P2POrderBookABI; 
