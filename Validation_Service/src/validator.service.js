@@ -18,6 +18,11 @@ const { ethers, AbiCoder } = require("ethers");
 
 async function validate(proofOfTask, data, taskDefinitionId) {
     try {
+        // For withdrawal tasks, we need special handling
+        if (taskDefinitionId === taskController.taskDefinitionId.ProcessWithdrawal) {
+            return await validateWithdrawal(proofOfTask, data);
+        }
+
         // Check sender signature
 
         const proofParts = proofOfTask.split("_")[3];
@@ -199,7 +204,79 @@ async function validate(proofOfTask, data, taskDefinitionId) {
         return false;
     }
 }
-  
+
+async function validateWithdrawal(proofOfTask, data) {
+    try {
+        // Parse the withdrawal data
+        const account = ethers.getAddress('0x' + Buffer.from(data.slice(0, 20)).toString('hex'));
+        const asset = ethers.getAddress('0x' + Buffer.from(data.slice(20, 40)).toString('hex'));
+        const amount = ethers.getBigInt('0x' + Buffer.from(data.slice(40, 72)).toString('hex'));
+        
+        // Extract signature from proof of task
+        // Format: Withdrawal_<id>_User_<account>_Asset_<asset>_Amount_<amount>_Timestamp_<timestamp>_Signature_<signature>
+        const proofParts = proofOfTask.split('_');
+        const signature = proofParts[proofParts.indexOf('Signature') + 1];
+        const amountStr = proofParts[proofParts.indexOf('Amount') + 1];
+        
+        // Verify signature
+        const withdrawalMessage = `Withdraw ${amountStr} of token ${asset}`;
+        const messageHash = ethers.hashMessage(withdrawalMessage);
+        const recoveredAddress = ethers.recoverAddress(messageHash, signature);
+        
+        if (recoveredAddress.toLowerCase() !== account.toLowerCase()) {
+            console.error("Signature verification failed for withdrawal");
+            return false;
+        }
+        
+        // Check if funds are available in escrow
+        const avsHookAddress = process.env.AVS_HOOK_ADDRESS;
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+        const avsHookContract = new ethers.Contract(avsHookAddress, require('./abi/P2POrderBookABI.js'), provider);
+        
+        // Check on-chain escrow balance
+        const escrowedBalance = await avsHookContract.escrowedFunds(account, asset);
+        
+        if (escrowedBalance < amount) {
+            console.error("Insufficient funds in escrow for withdrawal");
+            return false;
+        }
+        
+        // Check if funds are not locked in open orders
+        const formData = new FormData();
+        formData.append('payload', JSON.stringify({
+            account,
+            asset
+        }));
+        
+        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/check_available_funds`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            console.error("Failed to check available funds in orderbook");
+            return false;
+        }
+        
+        const fundData = await response.json();
+        
+        if (fundData.lockedAmount && 
+            ethers.parseUnits(fundData.lockedAmount.toString(), 
+                              asset === taskController.token_symbol_address_mapping['WETH'] ? 18 : 6) + amount > escrowedBalance) {
+            console.error("Funds are locked in open orders");
+            return false;
+        }
+        
+        // All checks passed
+        console.log(`Withdrawal validated for account ${account}, asset ${asset}, amount ${amount}`);
+        return true;
+    } catch (err) {
+        console.error("Error validating withdrawal:", err);
+        return false;
+    }
+}
+
 module.exports = {
     validate,
+    validateWithdrawal
 }

@@ -13,6 +13,7 @@ const router = Router();
 const orderQueue = [];
 let isOrderBookLocked = false;
 let currentProcessingOrderId = null;
+let currentProcessingWithdrawalId = null;
 
 // Setup contract event listeners for order settlement events
 function setupContractEventListeners() {
@@ -86,6 +87,19 @@ function setupContractEventListeners() {
         
         unlockOrderBookAndProcessNextOrder();
     });
+
+    // Listen for WithdrawalProcessed event (Task 5)
+    avsHookContract.on("WithdrawalProcessed", (account, asset, amount) => {
+        console.log(`WithdrawalProcessed event received for account: ${account}, asset: ${asset}, amount: ${amount}`);
+        
+        if (!currentProcessingWithdrawalId) {
+            console.error(`Received WithdrawalProcessed event but no withdrawal is currently being processed`);
+            return;
+        }
+        
+        currentProcessingWithdrawalId = null;
+        unlockOrderBookAndProcessNextOrder();
+    });
 }
 
 // Initialize event listeners
@@ -95,6 +109,7 @@ setupContractEventListeners();
 async function unlockOrderBookAndProcessNextOrder() {
     console.log("Unlocking order book and processing next order...");
     currentProcessingOrderId = null;
+    currentProcessingWithdrawalId = null;
     isOrderBookLocked = false;
 
     if (orderQueue.length > 0) {
@@ -415,7 +430,6 @@ router.post("/cancelOrder", async (req, res) => {
     }
 });
 
-// TODO
 router.post("/orderBook", async (req, res) => {
     const { symbol } = req.body;
 
@@ -425,6 +439,141 @@ router.post("/orderBook", async (req, res) => {
     } catch (error) {
         console.log(error)
         return res.status(500).send(new CustomError("Something went wrong", {}));
+    }
+});
+
+router.post("/initiateWithdrawal", async (req, res) => {
+    try {
+        const { account, asset, amount, signature } = req.body;
+        
+        if (!account || !asset || !amount || !signature) {
+            return res.status(400).send(new CustomError("Missing required parameters: account, asset, amount, and signature", {}));
+        }
+        
+        // Create the message that should have been signed by the user
+        const withdrawalMessage = `Withdraw ${amount} of token ${asset}`;
+        
+        // Verify the signature
+        const messageHash = ethers.hashMessage(withdrawalMessage);
+        const recoveredAddress = ethers.recoverAddress(messageHash, signature);
+        
+        if (recoveredAddress.toLowerCase() !== account.toLowerCase()) {
+            return res.status(401).send(new CustomError("Invalid signature", {}));
+        }
+        
+        // Create withdrawal data
+        const withdrawalData = {
+            account,
+            asset,
+            amount: ethers.parseUnits(amount.toString(), asset === token_symbol_address_mapping['WETH'] ? 18 : 6)
+        };
+        
+        // Check if funds are available in escrow and not locked in orders
+        const avsHookAddress = process.env.AVS_HOOK_ADDRESS;
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+        const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
+        
+        // Check on-chain escrow balance
+        const escrowedBalance = await avsHookContract.escrowedFunds(account, asset);
+        
+        if (escrowedBalance < withdrawalData.amount) {
+            return res.status(400).send(new CustomError("Insufficient funds in escrow", {}));
+        }
+        
+        // Call to order book service to check if funds are locked in open orders
+        const formData = new FormData();
+        formData.append('payload', JSON.stringify({
+            account,
+            asset
+        }));
+        
+        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/check_available_funds`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            return res.status(response.status).send(new CustomError(errorData.error || "Failed to check available funds", {}));
+        }
+        
+        const fundData = await response.json();
+        
+        if (fundData.lockedAmount && ethers.parseUnits(fundData.lockedAmount.toString(), TOKENS[asset].decimals) + withdrawalData.amount > escrowedBalance) {
+            return res.status(400).send(new CustomError("Funds are locked in open orders", {}));
+        }
+        
+        // Check if order book is locked
+        if (isOrderBookLocked) {
+            // Add withdrawal task to queue
+            orderQueue.push({ 
+                type: 'withdrawal', 
+                data: { account, asset, amount, signature }, 
+                res 
+            });
+            
+            // Respond with queued status
+            return res.status(202).send(new CustomResponse({
+                message: "Withdrawal queued for processing",
+                queuePosition: orderQueue.length,
+                estimatedWaitTime: `~${orderQueue.length * 15} seconds` // Rough estimate
+            }));
+        }
+        
+        // Lock the order book before processing
+        isOrderBookLocked = true;
+        
+        // Generate unique withdrawal ID and timestamp
+        const timestamp = Date.now();
+        const withdrawalId = ethers.keccak256(
+            ethers.solidityPacked(
+                ["address", "address", "uint256", "uint256"],
+                [account, asset, withdrawalData.amount, timestamp]
+            )
+        );
+        
+        // Set the current processing withdrawal ID
+        currentProcessingWithdrawalId = withdrawalId;
+        
+        // Prepare encoded withdrawal data for the contract
+        const encodedData = ethers.concat([
+            ethers.zeroPadValue(ethers.getBytes(account), 20),
+            ethers.zeroPadValue(ethers.getBytes(asset), 20),
+            ethers.zeroPadValue(ethers.toBeArray(withdrawalData.amount), 32)
+        ]);
+        
+        // Prepare withdrawal task proof
+        const proofOfTask = `Withdrawal_${withdrawalId}_User_${account}_Asset_${asset}_Amount_${amount}_Timestamp_${timestamp}_Signature_${signature}`;
+        
+        // Send the task to the Validation Service and contract
+        const result = await dalService.sendTaskToContract(proofOfTask, encodedData, taskDefinitionId.ProcessWithdrawal);
+        
+        if (!result) {
+            throw new CustomError("Error in processing withdrawal", {});
+        }
+        
+        return res.status(200).send(new CustomResponse({
+            withdrawalId,
+            account,
+            asset,
+            amount,
+            timestamp,
+            message: "Withdrawal initiated successfully"
+        }));
+        
+    } catch (error) {
+        console.error('Error processing withdrawal request:', error);
+        
+        // Ensure the order book is unlocked when an error occurs
+        isOrderBookLocked = false;
+        currentProcessingWithdrawalId = null;
+        
+        // Process next order in queue if any
+        if (orderQueue.length > 0) {
+            setTimeout(unlockOrderBookAndProcessNextOrder, 0);
+        }
+        
+        return res.status(error.statusCode || 500).send(new CustomError(error.message || "Error processing withdrawal", error.data || {}));
     }
 });
 

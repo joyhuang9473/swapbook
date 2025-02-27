@@ -282,5 +282,45 @@ def get_best_order(payload: str = Form(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/check_available_funds")
+def check_available_funds(payload: str = Form(...)):
+    try:
+        payload_json = json.loads(payload)
+        account = payload_json['account']
+        asset = payload_json['asset']
+        
+        # Calculate total locked funds across all order books
+        total_locked_amount = Decimal('0')
+        
+        # Iterate through all order books
+        for symbol, order_book in order_books.items():
+            # Check if this order book involves the asset we're looking for
+            base_asset, quote_asset = symbol.split('_')
+            
+            # Check bids (buying orders)
+            if quote_asset == asset:  # If quote asset matches, check bids
+                for order_id, order in order_book.bids.order_map.items():
+                    if order['account'].lower() == account.lower():
+                        # For bids, the locked amount is price * quantity in quote asset
+                        locked_amount = order['price'] * order['quantity']
+                        total_locked_amount += locked_amount
+            
+            # Check asks (selling orders)
+            if base_asset == asset:  # If base asset matches, check asks
+                for order_id, order in order_book.asks.order_map.items():
+                    if order['account'].lower() == account.lower():
+                        # For asks, the locked amount is just the quantity in base asset
+                        total_locked_amount += order['quantity']
+        
+        return JSONResponse(content={
+            "message": "Available funds checked successfully",
+            "account": account,
+            "asset": asset,
+            "lockedAmount": float(total_locked_amount),
+            "status_code": 1
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

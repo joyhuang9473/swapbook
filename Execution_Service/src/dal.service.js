@@ -42,16 +42,26 @@ async function sendTaskToContract(proofOfTask, data, taskDefinitionId) {
   }
 }
 
-
-// async function sendCreateOrderTask(proofOfTask, data, taskDefinitionId) {
-//   // This stuff was written by Othentic (apart from msgData modifications) and should work out the box
-  
-//   const wallet = new ethers.Wallet(privateKey);
-//   const performerAddress = wallet.address;
-//   const msgData = ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)'], [data])
-//   const message = ethers.AbiCoder.defaultAbiCoder().encode(["string", "bytes", "address", "uint16"], [proofOfTask, msgData, performerAddress, taskDefinitionId]);
-//   const messageHash = ethers.keccak256(message);
-//   const sig = wallet.signingKey.sign(messageHash).serialized;
+// Add a specific method for processing withdrawals
+async function sendProcessWithdrawalTask(proofOfTask, withdrawalData, taskId) {
+    try {
+        console.log(`Sending withdrawal task with proof: ${proofOfTask}`);
+        console.log(`Withdrawal details: Account: ${withdrawalData.account}, Asset: ${withdrawalData.asset}, Amount: ${withdrawalData.amount}`);
+        
+        // Encode the withdrawal data
+        const encodedData = ethers.concat([
+            ethers.zeroPadValue(ethers.getBytes(withdrawalData.account), 20),
+            ethers.zeroPadValue(ethers.getBytes(withdrawalData.asset), 20),
+            ethers.zeroPadValue(ethers.toBeArray(withdrawalData.amount), 32)
+        ]);
+        
+        // Send the task using the general method
+        return await sendTaskToContract(proofOfTask, encodedData, taskId);
+    } catch (error) {
+        console.error("Error sending withdrawal task:", error);
+        return false;
+    }
+}
 
 //   const jsonRpcBody = {
 //     jsonrpc: "2.0",
@@ -177,5 +187,6 @@ module.exports = {
   // sendUpdateBestPriceTask,
   // sendCancelOrderTask,
   // sendFillOrderTask,
-  sendTaskToContract
+  sendTaskToContract,
+  sendProcessWithdrawalTask
 }
