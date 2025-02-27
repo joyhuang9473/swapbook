@@ -317,6 +317,15 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         // Update best price with next best order (passed in by AVS)
         (Order memory newBest,) = extractOrder(taskData, lastIdx);
 
+        if (newBest.isValid) {
+            if (newBest.isBid) bestPrices.bid = newBest;
+            else bestPrices.ask = newBest;
+        } else {
+            // Flip sides
+            if (order.isBid) delete bestPrices.ask;
+            else delete bestPrices.bid;
+        }
+
         emit CompleteFillOrder(
             order.orderId,
             counterpartyOrder.orderId        
@@ -358,15 +367,6 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
      * 3. PartialFill (order): Order crosses spread and partially fills best price.
      * 4. CompleteFill (order, nextOrder): Order crosses spread and completely fills best price, also update best price.
      * 5. ProcessWithdrawal (account, amount): User requested withdrawal, send money back.
-     */
-
-    /**
-     * [OLD -- see NEW above] There are 3 kinds of tasks:
-     * 0. UpdateBestPrice: Update best bid or best ask (in case of new best or cancellation of best)
-     * 1. FillOrder: Settle, then
-     *   if it is a partial fill (amount < best bid/ask) then reduce best bid/ask amount
-     *   if it is a complete fill (amount == best bid/ask) then replace best bid/ask with new best
-     * 2. ProcessWithdrawal: Send funds back to user
      * Note: for now we only have functionality that we can partially/fully accept the best bid/ask
      */
     function afterTaskSubmission(
