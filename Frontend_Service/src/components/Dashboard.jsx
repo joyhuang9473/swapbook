@@ -250,9 +250,9 @@ const Dashboard = () => {
         escrowAmount, 
         tokenToEscrow.decimals
       );
-      
+
       await escrowFunds(tokenToEscrow.address, amountInWei);
-      
+
       toast({
         title: 'Success',
         description: `${escrowAmount} ${tokenToEscrow.symbol} deposited to escrow`,
@@ -380,7 +380,7 @@ const Dashboard = () => {
                           orderBook.asks.map((order, idx) => (
                             <Tr key={`ask-${idx}`}>
                               <Td color="red.400">{order.price}</Td>
-                              <Td isNumeric>{order.quantity}</Td>
+                              <Td isNumeric>{order.amount}</Td>
                             </Tr>
                           ))
                         ) : (
@@ -407,7 +407,7 @@ const Dashboard = () => {
                           orderBook.bids.map((order, idx) => (
                             <Tr key={`bid-${idx}`}>
                               <Td color="green.400">{order.price}</Td>
-                              <Td isNumeric>{order.quantity}</Td>
+                              <Td isNumeric>{order.amount}</Td>
                             </Tr>
                           ))
                         ) : (
@@ -456,7 +456,7 @@ const Dashboard = () => {
                                 </Badge>
                               </Td>
                               <Td>{order.price}</Td>
-                              <Td>{order.quantity}</Td>
+                              <Td>{order.amount}</Td>
                               <Td>
                                 <Button 
                                   size="xs" 
@@ -497,7 +497,7 @@ const Dashboard = () => {
                                 </Badge>
                               </Td>
                               <Td>{order.price}</Td>
-                              <Td>{order.quantity}</Td>
+                              <Td>{order.amount}</Td>
                               <Td>{new Date(order.timestamp).toLocaleString()}</Td>
                             </Tr>
                           ))}
