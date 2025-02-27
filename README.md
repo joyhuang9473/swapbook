@@ -22,6 +22,16 @@ Key features:
 
 ## Architecture
 
+**Component interaction:**
+![Interaction Flow Diagram](assets/InteractionFlow.svg)
+
+**Flow for placing an order through the AVS:**
+![Place Order Flow Diagram](assets/PlaceOrderFlow.png)
+
+**Flow for placing an order through the Uniswap Pool:**
+![Hook Diagram](assets/HookFlow.png)
+
+
 The system consists of several interconnected services:
 
 1. **Orderbook Service**: Maintains the order book state, matching engine, and order processing logic
