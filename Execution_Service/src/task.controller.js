@@ -202,7 +202,7 @@ module.exports = {
 
     taskDefinitionId,
     
-    createOrder,
+    // createOrder,
     sendCreateOrderTask,
     sendFillOrderTask,
     sendUpdateBestPriceTask,

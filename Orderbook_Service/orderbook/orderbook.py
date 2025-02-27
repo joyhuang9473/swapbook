@@ -49,6 +49,7 @@ class OrderBook(object):
                 }
         else:
             sys.exit("order_type for process_order() is neither 'market' or 'limit'")
+        
         return {
             "success": True,
             "data": [trades, order_in_book, task_id, next_best_order]
@@ -203,9 +204,8 @@ class OrderBook(object):
                 order_in_book = quote
         else:
             sys.exit('process_limit_order() given neither "bid" nor "ask"')
-        
-        assert len(trades) == 1
 
+        assert len(trades) == 1 or len(trades) == 0
         return trades, order_in_book, task_id, next_best_order
 
     def cancel_order(self, side, order_id, time=None):

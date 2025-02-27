@@ -31,7 +31,7 @@ def register_order(payload: str = Form(...)):
         }
 
         process_result = order_book.process_order(_order, False, False)
-        
+
         # Determine task id
         # Task 1: Order does not cross spread and is not best price
             # trades should be empty if we did not cross the spread
@@ -49,8 +49,8 @@ def register_order(payload: str = Form(...)):
         # This is the Failure case
         if not process_result["success"]:
             return JSONResponse(content={
-                "message": process_result["message"]
-            }, status_code=0)
+                "message": process_result["data"]
+            }, status_code=400)
 
         trades, order, task_id, next_best_order = process_result["data"]
         # Note: task_id only set for partial and complete order fills
@@ -98,7 +98,7 @@ def register_order(payload: str = Form(...)):
         # Convert order to a serializable format
         # This should be the same info as _order
         order_dict = {
-            'order_id': int(order['order_id']),
+            'orderId': int(order['order_id']),
             'account': order['account'],
             'price': float(order['price']),
             'quantity': float(order['quantity']),
