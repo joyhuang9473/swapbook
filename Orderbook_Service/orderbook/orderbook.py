@@ -148,10 +148,10 @@ class OrderBook(object):
             # If we have asks, and we cross the spread, and we're covering more than one order, reject
             if (self.asks and price >= self.asks.min_price()):
                 min_price_orders = self.asks.min_price_list()
-                if (quantity_to_trade < min_price_orders[0]['quantity']):
+                if (quantity_to_trade < min_price_orders.head_order.quantity):
                     # Partial fill
                     task_id = 3
-                elif (quantity_to_trade == min_price_orders[0]['quantity']):
+                elif (quantity_to_trade == min_price_orders.head_order.quantity):
                     # Complete fill
                     task_id = 4
                     if (len(min_price_orders) > 1):
@@ -177,10 +177,10 @@ class OrderBook(object):
             # If we have bids, and we cross the spread, and we're covering more than one order, reject
             if (self.bids and price <= self.bids.max_price()):
                 max_price_orders = self.bids.max_price_list()
-                if (quantity_to_trade < max_price_orders[0]['quantity']):
+                if (quantity_to_trade < max_price_orders.head_order.quantity):
                     # Partial fill
                     task_id = 3
-                elif (quantity_to_trade == max_price_orders[0]['quantity']):
+                elif (quantity_to_trade == max_price_orders.head_order.quantity):
                     # Complete fill
                     task_id = 4
                     if (len(max_price_orders) > 1):
