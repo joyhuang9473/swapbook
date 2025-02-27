@@ -143,6 +143,8 @@ services:
     build:
       context: ./Orderbook_Service
       dockerfile: ./Dockerfile
+    environment:
+      - EXECUTION_SERVICE_ADDRESS=http://10.8.0.101:4003
     ports:
       - "8000:8000"
     networks:
@@ -175,6 +177,21 @@ services:
     networks:
       p2p:
         ipv4_address: 10.8.0.204
+
+  frontend-service:
+    build:
+      context: ./Frontend_Service
+      dockerfile: ./Dockerfile
+    environment:
+      - WETH_ADDRESS=${WETH_ADDRESS}
+      - USDC_ADDRESS=${USDC_ADDRESS}
+      - P2P_ORDERBOOK_ADDRESS=${P2P_ORDERBOOK_ADDRESS}
+    ports:
+      - "8080:8080"
+    networks:
+      p2p:
+        ipv4_address: 10.8.0.205
+
 
   prometheus:
     image: prom/prometheus:latest

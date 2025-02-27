@@ -2,10 +2,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { initializeConnector } from '@web3-react/core';
 import { MetaMask } from '@web3-react/metamask';
 import { ethers } from 'ethers';
-import config from '../../config.json';
 
 // Contract ABI and addresses
 import P2POrderBookABI from '../utils/P2POrderBookABI';
+
+const config = require('./config');
 
 // Network configuration - Polygon Amoy
 const CHAIN_ID = config.network.chainId; // Polygon Amoy testnet
