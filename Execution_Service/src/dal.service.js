@@ -43,25 +43,25 @@ async function sendTaskToContract(proofOfTask, data, taskDefinitionId) {
 }
 
 // Add a specific method for processing withdrawals
-async function sendProcessWithdrawalTask(proofOfTask, withdrawalData, taskId) {
-    try {
-        console.log(`Sending withdrawal task with proof: ${proofOfTask}`);
-        console.log(`Withdrawal details: Account: ${withdrawalData.account}, Asset: ${withdrawalData.asset}, Amount: ${withdrawalData.amount}`);
+// async function sendProcessWithdrawalTask(proofOfTask, withdrawalData, taskId) {
+//     try {
+//         console.log(`Sending withdrawal task with proof: ${proofOfTask}`);
+//         console.log(`Withdrawal details: Account: ${withdrawalData.account}, Asset: ${withdrawalData.asset}, Amount: ${withdrawalData.amount}`);
         
-        // Encode the withdrawal data
-        const encodedData = ethers.concat([
-            ethers.zeroPadValue(ethers.getBytes(withdrawalData.account), 20),
-            ethers.zeroPadValue(ethers.getBytes(withdrawalData.asset), 20),
-            ethers.zeroPadValue(ethers.toBeArray(withdrawalData.amount), 32)
-        ]);
+//         // Encode the withdrawal data
+//         const encodedData = ethers.concat([
+//             ethers.zeroPadValue(ethers.getBytes(withdrawalData.account), 20),
+//             ethers.zeroPadValue(ethers.getBytes(withdrawalData.asset), 20),
+//             ethers.zeroPadValue(ethers.toBeArray(withdrawalData.amount), 32)
+//         ]);
         
-        // Send the task using the general method
-        return await sendTaskToContract(proofOfTask, encodedData, taskId);
-    } catch (error) {
-        console.error("Error sending withdrawal task:", error);
-        return false;
-    }
-}
+//         // Send the task using the general method
+//         return await sendTaskToContract(proofOfTask, encodedData, taskId);
+//     } catch (error) {
+//         console.error("Error sending withdrawal task:", error);
+//         return false;
+//     }
+// }
 
 //   const jsonRpcBody = {
 //     jsonrpc: "2.0",
@@ -188,5 +188,5 @@ module.exports = {
   // sendCancelOrderTask,
   // sendFillOrderTask,
   sendTaskToContract,
-  sendProcessWithdrawalTask
+  // sendProcessWithdrawalTask
 }
