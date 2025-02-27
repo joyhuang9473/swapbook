@@ -482,30 +482,6 @@ router.post("/limitOrder", async (req, res) => {
             return res.status(500).send(new CustomError("Error in forwarding task from Performer", {}));
         }
 
-        // check if the order is filled
-        // if (data['order']['trades'] && data['order']['trades'].length > 0) {
-        //     var fillOrderData = JSON.parse(JSON.stringify(data)); // Create a deep copy
-
-        //     for (const trade of fillOrderData['order']['trades']) {
-        //         // trade: {'timestamp': 2, 'price': 50000.0, 'quantity': 1.0, 'time': 2, 'party1': ['0x1234567890123456789012345678901234567891', 'ask', 1, None], 'party2': ['0x1234567890123456789012345678901234567890', 'bid', None, None]}
-        //         // party: [trade_id, side, head_order.order_id, new_book_quantity]
-        //         fillOrderData['order']['quantity'] = trade['quantity'];
-
-
-        //         // MAY FAIL HERE: just do one part for now
-        //         result |= await taskController.sendFillOrderTask(fillOrderData);
-
-        //         if (!result) {
-        //             return res.status(500).send(new CustomError("sendFillOrderTask went wrong", {}));
-        //         }
-        //     }
-
-        //     // update the best price
-        //     // MAY FAIL HERE: just do one part for now
-        //     const opposite_side = side === 'bid' ? 'ask' : 'bid';
-        //     const _data = await taskController.getBestOrder(baseAsset, quoteAsset, opposite_side);
-        //     result |= await taskController.sendUpdateBestPriceTask(_data);
-        // }
     } catch (error) {
         console.error('Error handling limit order:', error);
         
