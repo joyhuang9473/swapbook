@@ -119,38 +119,36 @@ const Dashboard = () => {
   }, [orderBook]);
   
   // Fetch user's open orders
-  const fetchUserOrders = async () => {
+  const fetchUserOrders = useCallback(async () => {
     if (!active || !account) return;
     
-    // In a real app, you'd call an API to get this data
-    // For now, we'll filter the order book for the user's orders
-    let openOrders = []
-
-    for (let i = 0; i < orderBook.bids.length; i++) {
-      if (orderBook.bids[i].account === account) {
-        const order = {
-          orderId: orderBook.bids[i].orderId,
-          price: orderBook.bids[i].price,
-          amount: orderBook.bids[i].amount,
+    let openOrders = [];
+    
+    // Filter order book for user's orders
+    orderBook.bids.forEach(bid => {
+      if (bid.account === account) {
+        openOrders.push({
+          orderId: bid.orderId,
+          price: bid.price,
+          amount: bid.amount,
           isBid: true,
-        }
-        openOrders.push(order);
+        });
       }
-    }
-    for (let i = 0; i < orderBook.asks.length; i++) {
-      if (orderBook.asks[i].account === account) {
-        const order = {
-          orderId: orderBook.asks[i].orderId,
-          price: orderBook.asks[i].price,
-          amount: orderBook.asks[i].amount,
+    });
+    
+    orderBook.asks.forEach(ask => {
+      if (ask.account === account) {
+        openOrders.push({
+          orderId: ask.orderId,
+          price: ask.price,
+          amount: ask.amount,
           isBid: false,
-        }
-        openOrders.push(order);
+        });
       }
-    }
+    });
     
     setUserOrders(openOrders);
-  };
+  }, [active, account, orderBook]);
   
   // Place a limit order
   const placeLimitOrder = async () => {
@@ -357,18 +355,26 @@ const Dashboard = () => {
       return;
     }
 
-    // Initial fetch
-    fetchOrderBook();
+    let isMounted = true;
+
+    const fetchData = async () => {
+      try {
+        await Promise.all([
+          fetchOrderBook(),
+          fetchUserOrders()
+        ]);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
     
-    const interval = setInterval(() => {
-      fetchOrderBook();
-      fetchUserOrders();
-    }, 10000);
+    const interval = setInterval(fetchData, 1000);
     
     return () => {
+      isMounted = false;
       clearInterval(interval);
     };
-  }, [active, account, selectedPair]);
+  }, [active, account, selectedPair, fetchOrderBook, fetchUserOrders]);
   
   if (!active) {
     return (
