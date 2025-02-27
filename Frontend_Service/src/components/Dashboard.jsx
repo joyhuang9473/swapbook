@@ -91,8 +91,8 @@ const Dashboard = () => {
       const { baseAsset, quoteAsset } = getPairTokens();
       const response = await orderApi.getOrderBook(`${baseAsset}_${quoteAsset}`);
 
-      const newBids = response.data.bids.length > 0 ? response.data.bids : [];
-      const newAsks = response.data.asks.length > 0 ? response.data.asks : [];
+      const newBids = response?.data?.orderbook?.bids?.length > 0 ? response.data.orderbook.bids : [];
+      const newAsks = response?.data?.orderbook?.asks?.length > 0 ? response.data.orderbook.asks : [];
 
       setOrderBook({
         bids: newBids,
