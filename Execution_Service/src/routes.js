@@ -391,19 +391,27 @@ router.post("/limitOrder", async (req, res) => {
 
 // TODO
 router.post("/cancelOrder", async (req, res) => {
-    const { orderId, side, baseAsset, quoteAsset } = req.body;
     try {
-        const data = await taskController.cancelOrder(orderId, side, baseAsset, quoteAsset);
-        const result = await taskController.sendCancelOrderTask(data);
-
-        if (result) {
-            return res.status(200).send(new CustomResponse(data));
-        } else {
-            return res.status(500).send(new CustomError("Something went wrong", {}));
+        const { orderId, signature } = req.body;
+        
+        if (!orderId || !signature) {
+            return res.status(400).send(new CustomError("Missing required parameters: orderId and signature", {}));
         }
+        
+        const orderData = {
+            orderId: orderId,
+            signature: signature
+        };
+        
+        const result = await taskController.handleCancelOrder(orderData);
+        
+        return res.status(200).send(new CustomResponse({
+            ...result,
+            message: "Order successfully canceled"
+        }));
     } catch (error) {
-        console.log(error)
-        return res.status(500).send(new CustomError("Something went wrong", {}));
+        console.error('Error canceling order:', error);
+        return res.status(error.statusCode || 500).send(new CustomError(error.message || "Error canceling order", error.data || {}));
     }
 });
 
