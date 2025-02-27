@@ -1,12 +1,22 @@
 from orderbook import OrderBook
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import uvicorn
 from decimal import Decimal
 import time
 order_books = {}  # Dictionary to store multiple order books, keyed by symbol
 app = FastAPI()
+
+# Add CORS middleware configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 @app.post("/api/register_order")
 def register_order(payload: str = Form(...)):
