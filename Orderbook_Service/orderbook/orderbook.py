@@ -320,7 +320,9 @@ class OrderBook(object):
                 orderbook["asks"].append({
                     "price": float(price),
                     "amount": float(current_order.quantity),
-                    "total": float(price*current_order.quantity)
+                    "total": float(price*current_order.quantity),
+                    "account": current_order.account,
+                    "orderId": current_order.order_id
                 })
                 current_order = current_order.next_order
 
@@ -333,7 +335,9 @@ class OrderBook(object):
                 orderbook["bids"].append({
                     "price": float(price),
                     "amount": float(current_order.quantity),
-                    "total": float(price*current_order.quantity)
+                    "total": float(price*current_order.quantity),
+                    "account": current_order.account,
+                    "orderId": current_order.order_id
                 })
                 current_order = current_order.next_order
 

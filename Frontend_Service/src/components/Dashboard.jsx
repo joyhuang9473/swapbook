@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -84,17 +84,21 @@ const Dashboard = () => {
   };
   
   // Load order book data
-  const fetchOrderBook = async () => {
-    if (!active) return;
+  const fetchOrderBook = useCallback(async () => {
+    if (!active) { return; }
     try {
       setIsLoading(true);
       const { baseAsset, quoteAsset } = getPairTokens();
       const response = await orderApi.getOrderBook(`${baseAsset}_${quoteAsset}`);
 
-      const bids = response.data.bids
-      const asks = response.data.asks
+      const newBids = response.data.bids.length > 0 ? response.data.bids : [];
+      const newAsks = response.data.asks.length > 0 ? response.data.asks : [];
 
-      setOrderBook( { bids: bids, asks: asks });
+      setOrderBook({
+        bids: newBids,
+        asks: newAsks
+      });
+
     } catch (error) {
       console.error('Error fetching order book:', error);
       toast({
@@ -107,7 +111,12 @@ const Dashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [active, getPairTokens, toast]);
+  
+  // Add this effect to track orderBook changes
+  useEffect(() => {
+    console.log('OrderBook state updated:', orderBook);
+  }, [orderBook]);
   
   // Fetch user's open orders
   const fetchUserOrders = async () => {
@@ -115,10 +124,30 @@ const Dashboard = () => {
     
     // In a real app, you'd call an API to get this data
     // For now, we'll filter the order book for the user's orders
-    const openOrders = [
-      ...(orderBook.bids || []).filter(order => order.account === account),
-      ...(orderBook.asks || []).filter(order => order.account === account)
-    ];
+    let openOrders = []
+
+    for (let i = 0; i < orderBook.bids.length; i++) {
+      if (orderBook.bids[i].account === account) {
+        const order = {
+          orderId: orderBook.bids[i].orderId,
+          price: orderBook.bids[i].price,
+          amount: orderBook.bids[i].amount,
+          isBid: true,
+        }
+        openOrders.push(order);
+      }
+    }
+    for (let i = 0; i < orderBook.asks.length; i++) {
+      if (orderBook.asks[i].account === account) {
+        const order = {
+          orderId: orderBook.asks[i].orderId,
+          price: orderBook.asks[i].price,
+          amount: orderBook.asks[i].amount,
+          isBid: false,
+        }
+        openOrders.push(order);
+      }
+    }
     
     setUserOrders(openOrders);
   };
@@ -321,16 +350,24 @@ const Dashboard = () => {
     }
   }, [active, account, selectedPair]);
   
-  // Establish a polling interval to refresh data
+  // Modify the polling effect to ensure it's working
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      console.log('Polling disabled - not active');
+      return;
+    }
+
+    // Initial fetch
+    fetchOrderBook();
     
     const interval = setInterval(() => {
       fetchOrderBook();
       fetchUserOrders();
-    }, 10000); // Update every 10 seconds
+    }, 10000);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [active, account, selectedPair]);
   
   if (!active) {
