@@ -24,7 +24,7 @@ export function Web3Provider({ children }) {
   const isActivating = useIsActivating();
   const isActive = useIsActive();
   const provider = useProvider();
-  const account = accounts ? accounts[0] : undefined;
+  const [account, setAccount] = useState(accounts ? accounts[0] : undefined);
   
   const [loading, setLoading] = useState(false);
   const [orderBookContract, setOrderBookContract] = useState(null);
@@ -109,18 +109,39 @@ export function Web3Provider({ children }) {
         ['function approve(address spender, uint256 amount) public returns (bool)'],
         signer
       );
-      
       const approveTx = await tokenContract.approve(P2P_ORDERBOOK_ADDRESS, amount);
       await approveTx.wait();
-      
       // Then call the escrow function
       const tx = await orderBookContract.escrow(tokenAddress, amount);
-      return await tx.wait();
+      const receipt = await tx.wait();
+      return receipt;
     } catch (error) {
       console.error('Error in escrow transaction:', error);
       throw error;
     }
   };
+
+  useEffect(() => {
+    if (window.ethereum) {
+      // Handle account changes
+      window.ethereum.on('accountsChanged', async (accounts) => {
+        if (accounts.length > 0) {
+          const newAccount = accounts[0];
+          setAccount(newAccount);
+          // Reinitialize any account-specific data here
+        } else {
+          // No accounts found - user disconnected
+          disconnectWallet();
+        }
+      });
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', () => {});
+      }
+    };
+  }, []);
 
   return (
     <Web3Context.Provider
@@ -129,6 +150,7 @@ export function Web3Provider({ children }) {
         disconnectWallet,
         escrowFunds,
         account,
+        setAccount,
         active: isActive,
         provider,
         loading,

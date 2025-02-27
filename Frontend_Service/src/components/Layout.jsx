@@ -32,6 +32,24 @@ const Layout = ({ children }) => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
 
+  const handleSwitchAccount = async () => {
+    try {
+      // First disconnect current wallet
+      await disconnectWallet();
+      
+      // Request MetaMask to show account selection
+      await window.ethereum.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }],
+      });
+      
+      // MetaMask will automatically trigger a connection with the new account
+      // Your Web3Context should handle this via the 'accountsChanged' event
+    } catch (error) {
+      console.error('Failed to switch account:', error);
+    }
+  };
+
   return (
     <Box minH="100vh" display="flex" flexDirection="column">
       {/* Header */}
@@ -63,6 +81,7 @@ const Layout = ({ children }) => {
             </MenuButton>
             <MenuList>
               <MenuItem onClick={disconnectWallet}>Disconnect</MenuItem>
+              <MenuItem onClick={handleSwitchAccount}>Switch Account</MenuItem>
             </MenuList>
           </Menu>
         ) : (
