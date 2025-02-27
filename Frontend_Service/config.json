@@ -4,29 +4,29 @@
     "name": "Polygon Amoy Testnet"
   },
   "contracts": {
-    "P2P_ORDERBOOK_ADDRESS": "0x0000000000000000000000000000000000000000"
+    "P2P_ORDERBOOK_ADDRESS": "0x913a25aC2D06fFfd5148B9B6219eE95933484080"
   },
   "tokens": {
-    "WBTC": {
-      "address": "0x832fbBCB6B4F4F6F97A05898B735edc4Fc6BF618",
-      "symbol": "WBTC",
+    "WETH": {
+      "address": "0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018",
+      "symbol": "WETH",
       "decimals": 18
     },
     "USDC": {
-      "address": "0xD834AEE46DDc4c7bBa4126396d0395B87B05c60c",
+      "address": "0x8b2f38De30098bA09d69bd080A3814F4aE536A22",
       "symbol": "USDC",
       "decimals": 6
     }
   },
   "api": {
     "baseUrl": {
-      "development": "http://localhost:8080",
-      "production": "/api"
+      "development": "http://localhost:8000",
+      "production": "http://localhost:8000"
     },
     "endpoints": {
       "limitOrder": "/limitOrder",
       "cancelOrder": "/cancelOrder",
-      "orderBook": "/orderBook",
+      "orderBook": "/api/orderbook",
       "initiateWithdrawal": "/initiateWithdrawal"
     }
   },

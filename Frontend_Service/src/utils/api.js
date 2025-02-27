@@ -53,8 +53,13 @@ export const orderApi = {
   // Get orderbook for a symbol
   getOrderBook: async (symbol) => {
     try {
-      const response = await api.post(config.api.endpoints.orderBook, {
-        symbol
+      const formData = new FormData();
+      formData.append('payload', JSON.stringify({ symbol }));
+      
+      const response = await api.post(config.api.endpoints.orderBook, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
       return response.data;
     } catch (error) {

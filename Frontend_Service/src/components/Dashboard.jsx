@@ -60,7 +60,7 @@ const Dashboard = () => {
   const [orderBook, setOrderBook] = useState({ bids: [], asks: [] });
   const [userOrders, setUserOrders] = useState([]);
   const [filledOrders, setFilledOrders] = useState([]);
-  const [selectedPair, setSelectedPair] = useState('WBTC/USDC');
+  const [selectedPair, setSelectedPair] = useState('WETH_USDC');
   
   // Form states
   const [price, setPrice] = useState('');
@@ -74,7 +74,7 @@ const Dashboard = () => {
   
   // Parse the trading pair
   const getPairTokens = () => {
-    const [baseAsset, quoteAsset] = selectedPair.split('/');
+    const [baseAsset, quoteAsset] = selectedPair.split('_');
     return {
       baseAsset: TOKENS[baseAsset].address,
       quoteAsset: TOKENS[quoteAsset].address,
@@ -89,7 +89,10 @@ const Dashboard = () => {
     try {
       setIsLoading(true);
       const response = await orderApi.getOrderBook(selectedPair);
-      setOrderBook(response.data || { bids: [], asks: [] });
+      const bids = response.bids
+      const asks = response.asks
+
+      setOrderBook( { bids: bids, asks: asks });
     } catch (error) {
       console.error('Error fetching order book:', error);
       toast({
@@ -351,7 +354,7 @@ const Dashboard = () => {
                   onChange={(e) => setSelectedPair(e.target.value)}
                   width="150px"
                 >
-                  <option value="WBTC/USDC">WBTC/USDC</option>
+                  <option value="WETH/USDC">WETH/USDC</option>
                 </Select>
               </Flex>
             </CardHeader>
@@ -598,11 +601,11 @@ const Dashboard = () => {
                 <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                   <GridItem>
                     <Button 
-                      onClick={() => initiateWithdrawal(TOKENS.WBTC, '0.1')}
+                      onClick={() => initiateWithdrawal(TOKENS.WETH, '0.1')}
                       isLoading={isLoading}
                       width="full"
                     >
-                      Withdraw WBTC
+                      Withdraw WETH
                     </Button>
                   </GridItem>
                   <GridItem>
@@ -639,7 +642,7 @@ const Dashboard = () => {
                   value={tokenToEscrow.symbol}
                   onChange={(e) => setTokenToEscrow(TOKENS[e.target.value])}
                 >
-                  <option value="WBTC">WBTC</option>
+                  <option value="WETH">WETH</option>
                   <option value="USDC">USDC</option>
                 </Select>
               </FormControl>
