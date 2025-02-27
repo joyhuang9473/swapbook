@@ -121,27 +121,48 @@ export function Web3Provider({ children }) {
     }
   };
 
+  // Update account state when accounts change
+  useEffect(() => {
+    setAccount(accounts ? accounts[0] : undefined);
+  }, [accounts]);
+
+  // Handle account changes from window.ethereum
   useEffect(() => {
     if (window.ethereum) {
-      // Handle account changes
       window.ethereum.on('accountsChanged', async (accounts) => {
         if (accounts.length > 0) {
           const newAccount = accounts[0];
           setAccount(newAccount);
-          // Reinitialize any account-specific data here
+          // Reinitialize contracts with new account
+          if (provider) {
+            const signer = provider.getSigner();
+            const newOrderBookContract = new ethers.Contract(
+              P2P_ORDERBOOK_ADDRESS,
+              P2POrderBookABI,
+              signer
+            );
+            setOrderBookContract(newOrderBookContract);
+          }
         } else {
-          // No accounts found - user disconnected
+          setAccount(undefined);
+          setOrderBookContract(null);
           disconnectWallet();
         }
+      });
+
+      // Also listen for chain changes
+      window.ethereum.on('chainChanged', () => {
+        window.location.reload();
       });
     }
 
     return () => {
       if (window.ethereum) {
         window.ethereum.removeListener('accountsChanged', () => {});
+        window.ethereum.removeListener('chainChanged', () => {});
       }
     };
-  }, []);
+  }, [provider, disconnectWallet]);
 
   return (
     <Web3Context.Provider
