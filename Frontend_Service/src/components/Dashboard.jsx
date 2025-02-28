@@ -309,13 +309,25 @@ const Dashboard = () => {
       setEscrowAmount('');
     } catch (error) {
       console.error('Error depositing to escrow:', error);
-      toast({
-        title: 'Error',
-        description: 'Network congestion: Please make sure you set up proper gas fees and try it again later.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+
+      if (error.message == 'Insufficient balance') {
+        toast({
+          title: 'Error',
+          description: 'Insufficient balance.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Network congestion: Please make sure you set up proper gas fees and try it again later.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+
     } finally {
       setIsLoading(false);
     }
