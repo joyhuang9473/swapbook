@@ -185,10 +185,12 @@ services:
       context: ./Frontend_Service
       dockerfile: ./Dockerfile
     environment:
+      - EXECUTION_SERVICE_ADDRESS=10.8.0.101
       - WETH_ADDRESS=${WETH_ADDRESS}
       - USDC_ADDRESS=${USDC_ADDRESS}
       - P2P_ORDERBOOK_ADDRESS=${P2P_ORDERBOOK_ADDRESS}
-      - EXECUTION_SERVICE_ADDRESS=10.8.0.101
+    env_file:
+      - .env
     ports:
       - "8080:8080"
     networks:
