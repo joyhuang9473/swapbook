@@ -169,9 +169,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     // ============== DATA PROCESSING HELPERS ==============
 
-    function extractOrder(
-        bytes calldata taskData
-    ) pure private returns (Order memory) {
+    function extractOrder(bytes calldata taskData, uint256 offset) pure private returns (Order memory) {
         (
             uint256 orderId,
             address account,
@@ -184,27 +182,12 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
             uint8 isValid,
             uint256 timestamp
         ) = abi.decode(
-            taskData, (uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256)
+            taskData[offset:], (uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256)
         );
 
         Order memory order = Order(orderId, account, sqrtPrice, amount, isBid == 1, baseAsset, quoteAsset, quoteAmount, isValid == 1, timestamp);
 
         return order;
-    }
-
-    function extractOrder(bytes calldata taskData, uint256 offset) pure private returns (Order memory) {
-        return Order({
-            orderId: abi.decode(taskData[offset:], (uint256)),
-            account: abi.decode(taskData[offset + 32:], (address)),
-            sqrtPrice: abi.decode(taskData[offset + 52:], (uint256)),
-            amount: abi.decode(taskData[offset + 84:], (uint256)),
-            isBid: abi.decode(taskData[offset + 116:], (uint8)) == 1,
-            baseAsset: abi.decode(taskData[offset + 117:], (address)),
-            quoteAsset: abi.decode(taskData[offset + 137:], (address)),
-            quoteAmount: abi.decode(taskData[offset + 157:], (uint256)),
-            isValid: abi.decode(taskData[offset + 189:], (uint8)) == 1,
-            timestamp: abi.decode(taskData[offset + 190:], (uint256))
-        });
     }
 
     function extractWithdrawalData(
@@ -224,7 +207,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     function taskUpdateBest(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
-        Order memory order = extractOrder(taskData);
+        Order memory order = extractOrder(taskData, 0);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -249,7 +232,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     function taskPartialFillOrder(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
-        Order memory order = extractOrder(taskData);
+        Order memory order = extractOrder(taskData, 0);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -516,6 +499,20 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 }
 
 
+// function extractOrder(bytes calldata taskData, uint256 offset) pure private returns (Order memory) {
+//     return Order({
+//         orderId: abi.decode(taskData[offset:], (uint256)),
+//         account: abi.decode(taskData[offset + 32:], (address)),
+//         sqrtPrice: abi.decode(taskData[offset + 52:], (uint256)),
+//         amount: abi.decode(taskData[offset + 84:], (uint256)),
+//         isBid: abi.decode(taskData[offset + 116:], (uint8)) == 1,
+//         baseAsset: abi.decode(taskData[offset + 117:], (address)),
+//         quoteAsset: abi.decode(taskData[offset + 137:], (address)),
+//         quoteAmount: abi.decode(taskData[offset + 157:], (uint256)),
+//         isValid: abi.decode(taskData[offset + 189:], (uint8)) == 1,
+//         timestamp: abi.decode(taskData[offset + 190:], (uint256))
+//     });
+// }
 
 // function extractOrders(bytes calldata taskData) pure private returns (Order memory, Order memory) {
 
