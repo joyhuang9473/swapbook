@@ -463,7 +463,7 @@ router.post("/limitOrder", async (req, res) => {
 
         // Proof of Task from Execution Service is compared with Proof of Task from Validation Service later 
         const proofOfTask = `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${data.order.timestamp.toString()}-Signature_${orderData['signature']}`;
-        
+
         // Format data to send on-chain
         // In case of task 1, nothing
         // In case of tasks 2 and 3, order
@@ -474,8 +474,8 @@ router.post("/limitOrder", async (req, res) => {
         let messageData;
 
         if (data.taskId == 1) {
-            // Task 1: need nothing (no-op)
-            messageData = "";
+            // Task 1: do nothing onchain(no-op)
+            messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
         } else if (data.taskId == 2 || data.taskId == 3) {
             // Task 2: need order
             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);

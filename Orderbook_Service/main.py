@@ -67,23 +67,12 @@ def register_order(payload: str = Form(...)):
         trades, order, task_id, next_best_order = process_result["data"]
         # Note: task_id only set for partial and complete order fills
 
-        if not trades:
-            assert task_id == 0
-
-            # Did not cross the spread
-            if order is None:
-                # Order is not best price (TASK 1)
-                task_id = 1
-            else:
-                # Order is best price (TASK 2)
-                task_id = 2
-        else:
-            if order is None:
-                # fill the partial order, so this order is not in the book
-                # then we copy the original info to this order
-                # and make fake order_id
-                order = _order.copy()
-                order['order_id'] = 0
+        if order is None:
+            # fill the partial order, so this order is not in the book
+            # then we copy the original info to this order
+            # and make fake order_id
+            order = _order.copy()
+            order['order_id'] = 0
 
         assert order is not None
 
@@ -126,7 +115,7 @@ def register_order(payload: str = Form(...)):
             'quoteAsset': order['quoteAsset'],
             'trade_id': order['trade_id'],
             'trades': converted_trades,
-            'isValid': True, # What is this? Prev: True if order['order_id'] is not None else False
+            'isValid': True if order['order_id'] != 0 else False,
             'timestamp': order['timestamp']
         }
 

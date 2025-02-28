@@ -160,6 +160,12 @@ class OrderBook(object):
                     # More than one order covered, reject this for now
                     # This is disabled for now as we only track and lock funds for the best order on-chain
                     raise Exception("Not currently accepting orders larger than best order")
+            else:
+
+                if (self.bids.max_price() is None) or (price > self.bids.max_price()):
+                    task_id = 2
+                else:
+                    task_id = 1
 
             # Some of this is redundant now but should still work
             while (self.asks and price >= self.asks.min_price() and quantity_to_trade > 0):
@@ -189,6 +195,11 @@ class OrderBook(object):
                     # More than one order covered, reject this for now
                     # This is disabled for now as we only track and lock funds for the best order on-chain
                     raise Exception("Not currently accepting orders larger than best order")
+            else:
+                if (self.asks.min_price() is None) or (price < self.asks.min_price()):
+                    task_id = 2
+                else:
+                    task_id = 1
 
             # Partly redundant but should still work
             while (self.bids and price <= self.bids.max_price() and quantity_to_trade > 0):
