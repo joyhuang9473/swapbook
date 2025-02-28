@@ -20,11 +20,11 @@ const P2POrderBookABI = require("./abi/P2POrderBookABI");
 
 const TOKENS = {
     "WETH": {
-        "address": "0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018",
+        "address": process.env.WETH_ADDRESS,
         "decimals": 18
     },
     "USDC": {
-        "address": "0x8b2f38De30098bA09d69bd080A3814F4aE536A22",
+        "address": process.env.USDC_ADDRESS,
         "decimals": 6
     }
 }
@@ -33,13 +33,13 @@ async function validate(proofOfTask, data, taskDefinitionId) {
     try {
 
         // For withdrawal tasks, we need special handling
-        if (taskDefinitionId === taskController.taskDefinitionId.ProcessWithdrawal) {
+        if (taskDefinitionId === 5) {
             return await validateWithdrawal(proofOfTask, data);
         }
         // For cancel order tasks, we need special handling
-        else if (taskDefinitionId === taskController.taskDefinitionId.CancelOrder) {
-            return await validateCancelOrder(proofOfTask, data);
-        }
+        // else if (taskDefinitionId === 6) {
+        //     return await validateCancelOrder(proofOfTask, data);
+        // }
 
         const proofParts = proofOfTask.split("-");
         const timestampPart = proofParts[2];
@@ -77,9 +77,7 @@ async function validate(proofOfTask, data, taskDefinitionId) {
 
 
         // TODO: add check that signature corresponds to data in order signed by data.account
-
         // Send order to order book
-
         const formData = new FormData();
 
         formData.append('payload', JSON.stringify({

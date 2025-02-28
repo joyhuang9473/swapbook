@@ -4,25 +4,34 @@ const dalService = require("./dal.service.js");
 const { ethers } = require("ethers");
 const CustomError = require("./utils/validateError");
 
+// Old definition
+// const taskDefinitionId = {
+//     Origin: 0,
+//     // new task: start from 1
+//     UpdateBestPrice: 1,
+//     FillOrder: 2,
+//     ProcessWithdrawal: 3,
+//     CancelOrder: 4,
+//     CreateOrder: 5,
+// }
 const taskDefinitionId = {
     Origin: 0,
-    // new task: start from 1
-    UpdateBestPrice: 1,
-    FillOrder: 2,
-    ProcessWithdrawal: 3,
-    CancelOrder: 4,
-    CreateOrder: 5,
+    Task1: 1,
+    Task2: 2,
+    Task3: 3,
+    Task4: 4,
+    Task5: 5,
 }
 
 const decimal = 18;
 
 const token_symbol_address_mapping = {
-    'WETH': '0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018',
-    'USDC': '0x8b2f38De30098bA09d69bd080A3814F4aE536A22',
+    'WETH': process.env.WETH_ADDRESS,
+    'USDC': process.env.USDC_ADDRESS,
 }
 const token_address_symbol_mapping = {
-    '0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018': 'WETH',
-    '0x8b2f38De30098bA09d69bd080A3814F4aE536A22': 'USDC',
+    [process.env.WETH_ADDRESS]: 'WETH',
+    [process.env.USDC_ADDRESS]: 'USDC',
 }
 
 // async function createOrder(account, price, quantity, side, baseAsset, quoteAsset, timestamp=0) {
@@ -175,9 +184,11 @@ async function handleCancelOrder(orderData) {
                 
                 // Prepare the task
                 const proofOfTask = `UpdateBestPrice-CancelOrder-${orderId}-${nextBestOrder.orderId}-${Date.now()}`;
-                
+                const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
+                const encodedData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [nextBestOrder]);
+
                 // Send update best order task to contract through AVS
-                const updateResult = await dalService.sendUpdateBestPriceTask(proofOfTask, nextBestOrder, taskDefinitionId.UpdateBestPrice);
+                const updateResult = await dalService.sendTaskToContract(proofOfTask, encodedData, 2);
 
                 if (!updateResult) {
                     throw new CustomError("Failed to update best order on-chain", {});

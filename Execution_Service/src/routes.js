@@ -359,11 +359,11 @@ async function processOrder(orderData, res) {
 // Copied from config.json in Frontend_Service, TODO move to repo base and reference that
 const TOKENS = {
     "WETH": {
-        "address": "0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018",
+        "address": process.env.WETH_ADDRESS,
         "decimals": 18
     },
     "USDC": {
-        "address": "0x8b2f38De30098bA09d69bd080A3814F4aE536A22",
+        "address": process.env.USDC_ADDRESS,
         "decimals": 6
     }
 }
@@ -479,7 +479,7 @@ router.post("/limitOrder", async (req, res) => {
         } else if (data.taskId == 2 || data.taskId == 3) {
             // Task 2: need order
             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
-        } else {
+        } else if (data.taskId == 4) {
             // Task 4: need order and next best
             const nextBestOrder = {
                 orderId: data.nextBestOrder.orderId,
@@ -498,14 +498,7 @@ router.post("/limitOrder", async (req, res) => {
         }
 
         // Function to pass task onto next step (validation service then chain)
-        let finalTaskDefinitionId = 0
-        if (data.taskId == 1) {
-            finalTaskDefinitionId = taskController.taskDefinitionId.FillOrder
-        } else if (data.taskId == 2 || data.taskId == 3 || data.taskId == 4) {
-            finalTaskDefinitionId = taskController.taskDefinitionId.UpdateBestPrice
-        }
-
-        const result = await dalService.sendTaskToContract(proofOfTask, messageData, finalTaskDefinitionId);
+        const result = await dalService.sendTaskToContract(proofOfTask, messageData, data.taskId);
 
         if (result) {
             return res.status(200).send(new CustomResponse(data));
@@ -530,7 +523,6 @@ router.post("/limitOrder", async (req, res) => {
     }
 });
 
-// TODO
 router.post("/cancelOrder", async (req, res) => {
     try {
         const { orderId, signature } = req.body;
@@ -676,7 +668,7 @@ router.post("/initiateWithdrawal", async (req, res) => {
             ["address", "address", "uint256"],
             [account, asset, ethers.parseUnits(amount.toString(), asset === taskController.token_symbol_address_mapping['WETH'] ? 18 : 6)]
         );
-        const result = await dalService.sendTaskToContract(proofOfTask, encodedWithdrawalData, taskController.taskDefinitionId.ProcessWithdrawal);
+        const result = await dalService.sendTaskToContract(proofOfTask, encodedWithdrawalData, 5);
         
         if (!result) {
             throw new CustomError("Error in processing withdrawal", {});

@@ -16,12 +16,12 @@ const taskDefinitionId = {
 const decimal = 18;
 
 const token_symbol_address_mapping = {
-    'WETH': '0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018',
-    'USDC': '0x8b2f38De30098bA09d69bd080A3814F4aE536A22',
+    'WETH': process.env.WETH_ADDRESS,
+    'USDC': process.env.USDC_ADDRESS,
 }
 const token_address_symbol_mapping = {
-    '0x138d34d08bc9Ee1f4680f45eCFb8fc8e4b0ca018': 'WETH',
-    '0x8b2f38De30098bA09d69bd080A3814F4aE536A22': 'USDC',
+    [process.env.WETH_ADDRESS]: 'WETH',
+    [process.env.USDC_ADDRESS]: 'USDC',
 }
 
 async function createOrder(account, price, quantity, side, baseAsset, quoteAsset, timestamp=0) {
