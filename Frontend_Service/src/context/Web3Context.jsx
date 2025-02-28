@@ -106,17 +106,52 @@ export function Web3Provider({ children }) {
       const signer = provider.getSigner();
       const tokenContract = new ethers.Contract(
         tokenAddress,
-        ['function approve(address spender, uint256 amount) public returns (bool)'],
+        ['function approve(address spender, uint256 amount) public returns (bool)',
+         'function decimals() public view returns (uint8)',
+         'function balanceOf(address owner) public view returns (uint256)'],
         signer
       );
-      const approveTx = await tokenContract.approve(P2P_ORDERBOOK_ADDRESS, amount);
+  
+      const decimals = await tokenContract.decimals();
+      const amountInWei = ethers.utils.parseUnits(amount.toString(), decimals);
+      
+      // Add balance check
+      const balance = await tokenContract.balanceOf(account);
+      console.log("Account balance:", ethers.utils.formatUnits(balance, decimals));
+      console.log("Attempting to escrow:", amount);
+      
+      if (balance.lt(amountInWei)) {
+        throw new Error('Insufficient balance');
+      }
+
+      // Add gas estimation with manual limit
+      const gasEstimate = await orderBookContract.estimateGas.escrow(
+        tokenAddress, 
+        amountInWei,
+        { from: account }
+      );
+      
+      console.log("Estimated gas:", gasEstimate.toString());
+
+      const approveTx = await tokenContract.approve(P2P_ORDERBOOK_ADDRESS, amountInWei);
       await approveTx.wait();
-      // Then call the escrow function
-      const tx = await orderBookContract.escrow(tokenAddress, amount);
+      
+      // Add gas limit buffer
+      const tx = await orderBookContract.escrow(
+        tokenAddress, 
+        amountInWei,
+        { 
+          gasLimit: gasEstimate.mul(120).div(100) // Add 20% buffer
+        }
+      );
       const receipt = await tx.wait();
       return receipt;
     } catch (error) {
       console.error('Error in escrow transaction:', error);
+      // Add more detailed error information
+      if (error.data) {
+        console.error('Error data:', error.data);
+      }
       throw error;
     }
   };

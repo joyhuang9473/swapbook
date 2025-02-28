@@ -273,14 +273,8 @@ const Dashboard = () => {
     
     try {
       setIsLoading(true);
-      
-      // Convert amount to wei with the correct decimal places
-      const amountInWei = ethers.utils.parseUnits(
-        escrowAmount, 
-        tokenToEscrow.decimals
-      );
 
-      await escrowFunds(tokenToEscrow.address, amountInWei);
+      await escrowFunds(tokenToEscrow.address, escrowAmount);
 
       toast({
         title: 'Success',
