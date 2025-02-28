@@ -163,6 +163,34 @@ export function Web3Provider({ children }) {
     }
   };
 
+  // Get escrow balance
+  const getEscrowBalance = async (tokenAddress) => {
+    if (!orderBookContract || !isActive) return null;
+    
+    console.log("Getting escrow balance for token address:", tokenAddress);
+
+
+    try {
+      const signer = provider.getSigner();
+      const tokenContract = new ethers.Contract(
+        tokenAddress,
+        ['function decimals() public view returns (uint8)',
+         'function balanceOf(address owner) public view returns (uint256)'],
+        signer
+      );
+
+      const escrowedFunds = await orderBookContract.escrowedFunds(account, tokenAddress);
+      const decimals = await tokenContract.decimals();
+      const formattedBalance = ethers.utils.formatUnits(escrowedFunds || '0', decimals);
+
+      return formattedBalance;
+    } catch (error) {
+      console.error('Error fetching escrow balance:', error);
+      throw error;
+    }
+  };
+  
+
   // Update account state when accounts change
   useEffect(() => {
     setAccount(accounts ? accounts[0] : undefined);
@@ -212,6 +240,7 @@ export function Web3Provider({ children }) {
         connectWallet,
         disconnectWallet,
         escrowFunds,
+        getEscrowBalance,
         account,
         setAccount,
         active: isActive,

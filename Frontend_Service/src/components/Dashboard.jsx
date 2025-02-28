@@ -52,7 +52,7 @@ import { config } from '../../config';
 const TOKENS = config.tokens;
 
 const Dashboard = () => {
-  const { active, account, escrowFunds } = useWeb3();
+  const { active, account, escrowFunds, getEscrowBalance } = useWeb3();
   const toast = useToast();
   
   // State variables
@@ -71,7 +71,12 @@ const Dashboard = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [tokenToEscrow, setTokenToEscrow] = useState(TOKENS.USDC);
   const [escrowAmount, setEscrowAmount] = useState('');
-  
+  // for displaying balances
+  const [escrowBalances, setEscrowBalances] = useState({
+    WETH: 0,
+    USDC: 0
+  });
+
   // Parse the trading pair
   const getPairTokens = () => {
     const [baseAsset, quoteAsset] = selectedPair.split('_');
@@ -113,6 +118,22 @@ const Dashboard = () => {
     }
   }, [active, getPairTokens, toast]);
   
+  const fetchEscrowBalances = useCallback(async () => {
+    if (!active || !account) return;
+    
+    try {
+      const wethBalance = await getEscrowBalance(TOKENS.WETH.address);
+      const usdcBalance = await getEscrowBalance(TOKENS.USDC.address);
+
+      setEscrowBalances({
+        WETH: parseFloat(wethBalance).toFixed(2),
+        USDC: parseFloat(usdcBalance).toFixed(2)
+      });
+    } catch (error) {
+      console.error('Error fetching escrow balances:', error);
+    }
+  }, [active, account, getEscrowBalance]);
+
   // Add this effect to track orderBook changes
   useEffect(() => {
     console.log('OrderBook state updated:', orderBook);
@@ -290,7 +311,7 @@ const Dashboard = () => {
       console.error('Error depositing to escrow:', error);
       toast({
         title: 'Error',
-        description: 'Failed to deposit to escrow. Check your token balance.',
+        description: 'Network congestion: Please make sure you set up proper gas fees and try it again later.',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -363,7 +384,8 @@ const Dashboard = () => {
       try {
         await Promise.all([
           fetchOrderBook(),
-          fetchUserOrders()
+          fetchUserOrders(),
+          fetchEscrowBalances()
         ]);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -376,7 +398,7 @@ const Dashboard = () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [active, account, selectedPair, fetchOrderBook, fetchUserOrders]);
+  }, [active, account, selectedPair, fetchOrderBook, fetchUserOrders, fetchEscrowBalances]);
   
   if (!active) {
     return (
@@ -630,6 +652,20 @@ const Dashboard = () => {
                   </Text>
                 </Alert>
                 
+                <Box borderWidth="1px" borderRadius="lg" p={4}>
+                  <Heading size="sm" mb={3}>Current Escrow Balance</Heading>
+                  <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                    <GridItem>
+                      <Text fontSize="sm" color="gray.500">WETH Balance</Text>
+                      <Text fontSize="lg" fontWeight="bold">{escrowBalances.WETH} WETH</Text>
+                    </GridItem>
+                    <GridItem>
+                      <Text fontSize="sm" color="gray.500">USDC Balance</Text>
+                      <Text fontSize="lg" fontWeight="bold">{escrowBalances.USDC} USDC</Text>
+                    </GridItem>
+                  </Grid>
+                </Box>
+
                 <Button 
                   colorScheme="brand" 
                   onClick={onOpen}
