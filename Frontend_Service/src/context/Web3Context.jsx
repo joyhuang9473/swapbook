@@ -102,6 +102,9 @@ export function Web3Provider({ children }) {
     if (!orderBookContract || !isActive) return null;
     
     try {
+      console.log("Escrowing token address:", tokenAddress);
+      console.log("Escrowing token amount:", amount);
+
       // First approve the contract to spend tokens
       const signer = provider.getSigner();
       const tokenContract = new ethers.Contract(
@@ -112,9 +115,13 @@ export function Web3Provider({ children }) {
         signer
       );
   
+      console.log("Token contract:", tokenContract);
+
       const decimals = await tokenContract.decimals();
       const amountInWei = ethers.utils.parseUnits(amount.toString(), decimals);
       
+      console.log("Amount in wei:", amountInWei);
+
       // Add balance check
       const balance = await tokenContract.balanceOf(account);
       console.log("Account balance:", ethers.utils.formatUnits(balance, decimals));
@@ -125,13 +132,13 @@ export function Web3Provider({ children }) {
       }
 
       // Add gas estimation with manual limit
-      const gasEstimate = await orderBookContract.estimateGas.escrow(
-        tokenAddress, 
-        amountInWei,
-        { from: account }
-      );
+      // const gasEstimate = await orderBookContract.estimateGas.escrow(
+      //   tokenAddress, 
+      //   amountInWei,
+      //   { from: account }
+      // );
       
-      console.log("Estimated gas:", gasEstimate.toString());
+      // console.log("Estimated gas:", gasEstimate.toString());
 
       const approveTx = await tokenContract.approve(P2P_ORDERBOOK_ADDRESS, amountInWei);
       await approveTx.wait();
@@ -140,9 +147,9 @@ export function Web3Provider({ children }) {
       const tx = await orderBookContract.escrow(
         tokenAddress, 
         amountInWei,
-        { 
-          gasLimit: gasEstimate.mul(120).div(100) // Add 20% buffer
-        }
+        // { 
+        //   gasLimit: gasEstimate.mul(120).div(100) // Add 20% buffer
+        // }
       );
       const receipt = await tx.wait();
       return receipt;
