@@ -19,6 +19,7 @@
     "@web3-react/metamask": "^8.2.4",
     "@web3-react/types": "^8.2.3",
     "axios": "^1.6.7",
+    "dotenv": "^16.4.7",
     "ethers": "^5.7.2",
     "framer-motion": "^6.5.1",
     "react": "^18.2.0",
