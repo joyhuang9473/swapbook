@@ -5,6 +5,7 @@ import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
@@ -36,16 +37,15 @@ struct BestPrices {
 
 // Limitation: For now, we store just best bid and best ask on-chain (for each token)
 contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
+    using PoolIdLibrary for PoolKey;
     using Address for address payable;
 
     address public immutable ATTESTATION_CENTER;
 
     mapping(address => mapping(address => uint256)) public escrowedFunds; // maker => token => amount
 
-    // mapping(address => mapping(bool => Order)) public bestBidAndAsk; // token => isBid => Order
     mapping(address => mapping(address => BestPrices)) public bestBidAndAsk; // baseAsset => quoteAsset => BestPrices
 
-    // event MakeOrder(uint256 indexed orderId, address indexed maker, uint256 sqrtPrice, uint256 amount);
     event UpdateBestOrder(
         uint256 indexed orderId,
         address maker,
@@ -133,9 +133,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         escrowedFunds[msg.sender][asset] += amount;
     }
 
-    // function withdraw(address asset, uint256 amount) external {}
     function withdraw(address, uint256) external pure {
-        // TODO: can only be done by user a week after depositing, perhaps subject to other restrictions to prevent sneaky withdrawals
+        // Can only be done by user a week after depositing, perhaps subject to other restrictions to prevent sneaky withdrawals
         revert DirectWithdrawalDisabled();
     }
 
@@ -171,10 +170,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
     // ============== DATA PROCESSING HELPERS ==============
 
     function extractOrder(
-        bytes calldata taskData,
-        uint256 startIdx
-    ) pure private returns (Order memory, uint256) {
-
+        bytes calldata taskData
+    ) pure private returns (Order memory) {
         (
             uint256 orderId,
             address account,
@@ -203,20 +200,29 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
             timestamp
         );
 
-        // Order memory order = Order({
-        //     orderId: uint256(bytes32(taskData[startIdx + 0 : startIdx + 32])),
-        //     account: address(uint160(uint256(bytes32(taskData[startIdx + 32 : startIdx + 52])))),
-        //     sqrtPrice: uint256(bytes32(taskData[startIdx + 52 : startIdx + 84])),
-        //     amount: uint256(bytes32(taskData[startIdx + 84 : startIdx + 116])),
-        //     isBid: uint8(taskData[startIdx + 116]) == 1,
-        //     baseAsset: address(uint160(uint256(bytes32(taskData[startIdx + 117 : startIdx + 137])))),
-        //     quoteAsset: address(uint160(uint256(bytes32(taskData[startIdx + 137 : startIdx + 157])))),
-        //     quoteAmount: uint256(bytes32(taskData[startIdx + 137 : startIdx + 169])),
-        //     isValid: uint8(taskData[startIdx + 169]) == 1,
-        //     timestamp: uint256(bytes32(taskData[startIdx + 170 : startIdx + 202]))
-        // });
+        return order;
+    }
 
-        return (order, startIdx + 202); // TODO: now invalid
+    function extractOrders(bytes calldata taskData) pure private returns (Order memory, Order memory) {
+        (
+            uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, uint8 isBid, 
+            address baseAsset, address quoteAsset, uint256 quoteAmount, uint8 isValid, uint256 timestamp
+        ) = abi.decode(
+            taskData,
+            (
+                uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256
+            )
+        );
+
+        Order memory order = Order(
+            orderId, account, sqrtPrice, amount, isBid == 1, baseAsset, quoteAsset, quoteAmount, isValid == 1, timestamp
+        );
+
+        Order memory nextOrder = Order(
+            orderId, account, sqrtPrice, amount, isBid == 1, baseAsset, quoteAsset, quoteAmount, isValid == 1, timestamp
+        );
+
+        return (order, nextOrder);
     }
 
     function extractWithdrawalData(
@@ -232,7 +238,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     function taskUpdateBest(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
-        (Order memory order,) = extractOrder(taskData, 0);
+        Order memory order = extractOrder(taskData);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -257,7 +263,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     function taskPartialFillOrder(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
-        (Order memory order,) = extractOrder(taskData, 0);
+        Order memory order = extractOrder(taskData);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -312,8 +318,10 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
 
     function taskCompleteFillOrder(bytes calldata taskData) private nonReentrant {
-        // Parse the bytes data into structured data
-        (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
+        (Order memory order, Order memory newBest) = extractOrders(taskData);
+
+        // // Parse the bytes data into structured data
+        // (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -344,7 +352,6 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         }
 
         // Update best price with next best order (passed in by AVS)
-        (Order memory newBest,) = extractOrder(taskData, lastIdx);
 
         if (newBest.isValid) {
             if (newBest.isBid) bestPrices.bid = newBest;
@@ -405,7 +412,6 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         uint256[2] calldata, /* _taSignature */
         uint256[] calldata /* _operatorIds */
     ) external {
-        // TODO: Look into how to use this? For now just this.
         if (!_isApproved) revert TaskNotApproved();
 
         // Only AVS
@@ -455,62 +461,72 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         });
     }
 
-    // TODO: or maybe _afterSwap
-    // function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata) {}
-    function _beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
+    function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata hookData)
         internal
         virtual
         override
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+
+        // 0 is base, 1 is quote
+        BestPrices storage direction01 = bestBidAndAsk[Currency.unwrap(key.currency0)][Currency.unwrap(key.currency1)];
+        
+        // 1 is base, 0 is quote
+        BestPrices storage direction10 = bestBidAndAsk[Currency.unwrap(key.currency1)][Currency.unwrap(key.currency0)];
+
+        // See if it's a buy or sell:
+
+        Order memory opposingOrder;
+
+        // Figure out token amount spent
+        uint256 token0SpendAmount = swapParams.amountSpecified < 0
+            ? uint256(-swapParams.amountSpecified)
+            : uint256(int256(-swapParams.amountSpecified));
+        
+        if (swapParams.zeroForOne) {
+            // Wants to swap token0 for token1 (either sell direction01 or buy direction 10)
+            // If selling direction01, must fill a bid
+            // If buying direction10, must fill an ask
+            if (direction01.bid.isValid) {
+                // opposing order found, check price is better
+                if (direction01.bid.sqrtPrice < swapParams.sqrtPriceLimitX96 && direction01.bid.amount <= token0SpendAmount) {
+                    // swap with contract
+                    opposingOrder = direction01.bid;
+                }
+            } else if (direction10.ask.isValid) {
+                if (direction10.ask.sqrtPrice > swapParams.sqrtPriceLimitX96 && direction10.ask.amount <= token0SpendAmount) {
+                    // swap with contract
+                    opposingOrder = direction10.ask;
+                }
+            }
+        } else {
+            // Wants to swap token1 for token0 (either buy direction01 or sell direction 10)
+            // If buying direction01, must fill an ask
+            // If selling direction10, must fill a bid
+            if (direction01.ask.isValid) {
+                // opposing order found, check price is better
+                if (direction01.ask.sqrtPrice > swapParams.sqrtPriceLimitX96 && direction01.ask.amount <= token0SpendAmount) {
+                    // swap with contract
+                    opposingOrder = direction01.ask;
+                }
+            } else if (direction10.bid.isValid) {
+                if (direction10.bid.sqrtPrice < swapParams.sqrtPriceLimitX96 && direction10.bid.amount <= token0SpendAmount) {
+                    // swap with contract
+                    opposingOrder = direction10.bid;
+                }
+            }
+        }
+
+        if (opposingOrder.isValid) {
+            // We are swapping with the contract
+            address user = abi.decode(hookData, (address));
+
+        } else {
+            // Proceed with AMM swap as normal (WIP)
+        }
+
         return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
     }
 
 }
-
-
-
-// Code for unused Swap struct system (instead of Order struct):
-
-// struct Order {
-//     address user;
-//     address asset;
-//     address amount;
-// }
-
-// struct BestPrices {
-//     address user1
-// }
-
-// struct Swap {
-//     address user1;
-//     address user2;
-//     address asset1;
-//     address asset2;
-//     uint256 amount1;
-//     uint256 amount2;
-// }
-
-// function settle(
-//     IAttestationCenter.TaskInfo calldata _taskInfo,
-//     bool _isApproved,
-//     bytes calldata, /* _tpSignature */
-//     uint256[2] calldata, /* _taSignature */
-//     uint256[] calldata /* _operatorIds */
-// ) external {
-//     // Task function
-//     if (msg.sender != address(ATTESTATION_CENTER)) revert OnlyAttestationCenter();
-
-//     // Parse task info into Swap struct
-//     Order memory order1 = Swap({
-//         user1: address(uint160(uint256(bytes32(_taskInfo.data[0:20])))),
-//         user2: address(uint160(uint256(bytes32(_taskInfo.data[20:40])))),
-//         asset1: address(uint160(uint256(bytes32(_taskInfo.data[40:60])))),
-//         asset2: address(uint160(uint256(bytes32(_taskInfo.data[60:80])))),
-//         amount1: uint256(bytes32(_taskInfo.data[80:112])),
-//         amount2: uint256(bytes32(_taskInfo.data[112:144]))
-//     });
-    
-//     // Then: include best price update in this
-// }
