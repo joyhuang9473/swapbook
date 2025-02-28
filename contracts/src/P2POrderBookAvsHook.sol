@@ -174,20 +174,49 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         bytes calldata taskData,
         uint256 startIdx
     ) pure private returns (Order memory, uint256) {
-        Order memory order = Order({
-            orderId: uint256(bytes32(taskData[startIdx + 0 : startIdx + 32])),
-            account: address(uint160(uint256(bytes32(taskData[startIdx + 32 : startIdx + 52])))),
-            sqrtPrice: uint256(bytes32(taskData[startIdx + 52 : startIdx + 84])),
-            amount: uint256(bytes32(taskData[startIdx + 84 : startIdx + 116])),
-            isBid: uint8(taskData[startIdx + 116]) == 1,
-            baseAsset: address(uint160(uint256(bytes32(taskData[startIdx + 117 : startIdx + 137])))),
-            quoteAsset: address(uint160(uint256(bytes32(taskData[startIdx + 137 : startIdx + 157])))),
-            quoteAmount: uint256(bytes32(taskData[startIdx + 137 : startIdx + 169])),
-            isValid: uint8(taskData[startIdx + 169]) == 1,
-            timestamp: uint256(bytes32(taskData[startIdx + 170 : startIdx + 202]))
-        });
 
-        return (order, startIdx + 202);
+        (
+            uint256 orderId,
+            address account,
+            uint256 sqrtPrice,
+            uint256 amount,
+            uint8 isBid,
+            address baseAsset,
+            address quoteAsset,
+            uint256 quoteAmount,
+            uint8 isValid,
+            uint256 timestamp
+        ) = abi.decode(
+            taskData, (uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256)
+        );
+
+        Order memory order = Order(
+            orderId,
+            account,
+            sqrtPrice,
+            amount,
+            isBid == 1,
+            baseAsset,
+            quoteAsset,
+            quoteAmount,
+            isValid == 1,
+            timestamp
+        );
+
+        // Order memory order = Order({
+        //     orderId: uint256(bytes32(taskData[startIdx + 0 : startIdx + 32])),
+        //     account: address(uint160(uint256(bytes32(taskData[startIdx + 32 : startIdx + 52])))),
+        //     sqrtPrice: uint256(bytes32(taskData[startIdx + 52 : startIdx + 84])),
+        //     amount: uint256(bytes32(taskData[startIdx + 84 : startIdx + 116])),
+        //     isBid: uint8(taskData[startIdx + 116]) == 1,
+        //     baseAsset: address(uint160(uint256(bytes32(taskData[startIdx + 117 : startIdx + 137])))),
+        //     quoteAsset: address(uint160(uint256(bytes32(taskData[startIdx + 137 : startIdx + 157])))),
+        //     quoteAmount: uint256(bytes32(taskData[startIdx + 137 : startIdx + 169])),
+        //     isValid: uint8(taskData[startIdx + 169]) == 1,
+        //     timestamp: uint256(bytes32(taskData[startIdx + 170 : startIdx + 202]))
+        // });
+
+        return (order, startIdx + 202); // TODO: now invalid
     }
 
     function extractWithdrawalData(
