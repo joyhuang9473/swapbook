@@ -171,10 +171,10 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
     // ============== DATA PROCESSING HELPERS ==============
 
     function extractOrder(
-        bytes calldata taskData,
-        uint256 startIdx
-    ) pure private returns (Order memory, uint256) {
-
+        bytes calldata taskData
+        // uint256 startIdx
+    // ) pure private returns (Order memory, uint256) {
+    ) pure private returns (Order memory) {
         (
             uint256 orderId,
             address account,
@@ -216,7 +216,35 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         //     timestamp: uint256(bytes32(taskData[startIdx + 170 : startIdx + 202]))
         // });
 
-        return (order, startIdx + 202); // TODO: now invalid
+        // return (order, startIdx + 202); // TODO: now invalid
+        return (order);
+    }
+
+    function extractOrders(bytes calldata taskData) pure private returns (Order memory, Order memory) {
+        (
+            // First order
+            uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, uint8 isBid, 
+            address baseAsset, address quoteAsset, uint256 quoteAmount, uint8 isValid, uint256 timestamp,
+            // Second order
+            uint256 _orderId, address _account, uint256 _sqrtPrice, uint256 _amount, uint8 _isBid,
+            address _baseAsset, address _quoteAsset, uint256 _quoteAmount, uint8 _isValid, uint256 _timestamp
+        ) = abi.decode(
+            taskData,
+            (
+                uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256,
+                uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256
+            )
+        );
+
+        Order memory order = Order(
+            orderId, account, sqrtPrice, amount, isBid == 1, baseAsset, quoteAsset, quoteAmount, isValid == 1, timestamp
+        );
+
+        Order memory nextOrder = Order(
+            _orderId, _account, _sqrtPrice, _amount, _isBid == 1, _baseAsset, _quoteAsset, _quoteAmount, _isValid == 1, _timestamp
+        );
+
+        return (order, nextOrder);
     }
 
     function extractWithdrawalData(
@@ -232,7 +260,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     function taskUpdateBest(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
-        (Order memory order,) = extractOrder(taskData, 0);
+        Order memory order = extractOrder(taskData);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -257,7 +285,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     function taskPartialFillOrder(bytes calldata taskData) private nonReentrant {
         // Parse the bytes data into structured data
-        (Order memory order,) = extractOrder(taskData, 0);
+        Order memory order = extractOrder(taskData);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -312,8 +340,10 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
 
     function taskCompleteFillOrder(bytes calldata taskData) private nonReentrant {
-        // Parse the bytes data into structured data
-        (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
+        (Order memory order, Order memory newBest) = extractOrders(taskData);
+
+        // // Parse the bytes data into structured data
+        // (Order memory order, uint256 lastIdx) = extractOrder(taskData, 0);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];
@@ -343,8 +373,8 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
             );
         }
 
-        // Update best price with next best order (passed in by AVS)
-        (Order memory newBest,) = extractOrder(taskData, lastIdx);
+        // // Update best price with next best order (passed in by AVS)
+        // (Order memory newBest,) = extractOrder(taskData, lastIdx);
 
         if (newBest.isValid) {
             if (newBest.isBid) bestPrices.bid = newBest;
