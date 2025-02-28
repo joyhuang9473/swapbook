@@ -166,9 +166,6 @@ export function Web3Provider({ children }) {
   // Get escrow balance
   const getEscrowBalance = async (tokenAddress) => {
     if (!orderBookContract || !isActive) return null;
-    
-    console.log("Getting escrow balance for token address:", tokenAddress);
-
 
     try {
       const signer = provider.getSigner();
