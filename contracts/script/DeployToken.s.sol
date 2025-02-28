@@ -37,7 +37,7 @@ contract DeployToken is Script {
         vm.startBroadcast();
 
         MockERC20 tokenA = new MockERC20("Wrapped Ether", "WETH", 18);
-        MockERC20 tokenB = new MockERC20("USDC", "USDC", 18);
+        MockERC20 tokenB = new MockERC20("USDC", "USDC", 6);
 
         console.log("tokenA", address(tokenA));
         console.log("tokenB", address(tokenB));
@@ -55,7 +55,7 @@ contract DeployToken is Script {
         }
 
         tokenA.mint(msg.sender, 1000000 * 10 ** 18);
-        tokenB.mint(msg.sender, 10000000000 * 10 ** 18);
+        tokenB.mint(msg.sender, 3000000000 * 10 ** 6);
 
         key = PoolKey({
             currency0: token0,
