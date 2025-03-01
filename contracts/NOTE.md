@@ -11,3 +11,9 @@ forge script script/DynamicFeesAvsHook.s.sol:DynamicFeesAvsHookDeploy \
 ```
 $ othentic-cli network create-task --l1-chain holesky --l2-chain amoy
 ```
+
+## Output ABI
+
+```
+$ forge inspect P2POrderBookAvsHook abi > P2POrderBookABI.js
+```
