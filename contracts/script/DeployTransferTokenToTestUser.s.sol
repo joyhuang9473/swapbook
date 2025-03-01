@@ -27,14 +27,14 @@ contract DeployTestUser is Script {
         IERC20 _tokenA = IERC20(tokenA);
         IERC20 _tokenB = IERC20(tokenB);
 
-        _tokenA.approve(msg.sender, 20 * 10 ** 18);
-        _tokenB.approve(msg.sender, 6000 * 10 ** 6);
+        _tokenA.approve(msg.sender, 200 * 10 ** 18);
+        _tokenB.approve(msg.sender, 60000 * 10 ** 6);
 
-        _tokenA.transferFrom(msg.sender, user1, 10 * 10 ** 18);
-        _tokenB.transferFrom(msg.sender, user1, 3000 * 10 ** 6);
+        _tokenA.transferFrom(msg.sender, user1, 100 * 10 ** 18);
+        _tokenB.transferFrom(msg.sender, user1, 30000 * 10 ** 6);
 
-        _tokenA.transferFrom(msg.sender, user2, 10 * 10 ** 18);
-        _tokenB.transferFrom(msg.sender, user2, 3000 * 10 ** 6);
+        _tokenA.transferFrom(msg.sender, user2, 100 * 10 ** 18);
+        _tokenB.transferFrom(msg.sender, user2, 30000 * 10 ** 6);
 
         vm.stopBroadcast();
     }
