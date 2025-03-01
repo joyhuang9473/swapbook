@@ -212,83 +212,83 @@ async function validateWithdrawal(proofOfTask, data) {
     }
 }
 
-async function validateCancelOrder(proofOfTask, data) {
-    try {
-        // Parse the cancel order data from the binary format
-        const orderId = ethers.getBigInt('0x' + Buffer.from(data.slice(0, 32)).toString('hex'));
-        const isBid = Buffer.from(data.slice(32, 64)).toString('hex') !== '0'.repeat(64); // boolean
-        const baseAsset = ethers.getAddress('0x' + Buffer.from(data.slice(64, 96)).toString('hex'));
-        const quoteAsset = ethers.getAddress('0x' + Buffer.from(data.slice(96, 128)).toString('hex'));
+// async function validateCancelOrder(proofOfTask, data) {
+//     try {
+//         // Parse the cancel order data from the binary format
+//         const orderId = ethers.getBigInt('0x' + Buffer.from(data.slice(0, 32)).toString('hex'));
+//         const isBid = Buffer.from(data.slice(32, 64)).toString('hex') !== '0'.repeat(64); // boolean
+//         const baseAsset = ethers.getAddress('0x' + Buffer.from(data.slice(64, 96)).toString('hex'));
+//         const quoteAsset = ethers.getAddress('0x' + Buffer.from(data.slice(96, 128)).toString('hex'));
         
-        // Extract information from proof of task
-        // Format: CancelOrder-<side>-<orderId>-<timestamp>
-        const proofParts = proofOfTask.split('-');
-        const side = proofParts[1]; // 'bid' or 'ask'
-        const orderIdFromProof = proofParts[2];
-        const timestampFromProof = proofParts[3];
+//         // Extract information from proof of task
+//         // Format: CancelOrder-<side>-<orderId>-<timestamp>
+//         const proofParts = proofOfTask.split('-');
+//         const side = proofParts[1]; // 'bid' or 'ask'
+//         const orderIdFromProof = proofParts[2];
+//         const timestampFromProof = proofParts[3];
         
-        // Verify that the orderId and side match
-        if (orderId.toString() !== orderIdFromProof || 
-            (isBid && side !== 'bid') || 
-            (!isBid && side !== 'ask')) {
-            console.error("Order ID or side mismatch in cancel order validation");
-            return false;
-        }
+//         // Verify that the orderId and side match
+//         if (orderId.toString() !== orderIdFromProof || 
+//             (isBid && side !== 'bid') || 
+//             (!isBid && side !== 'ask')) {
+//             console.error("Order ID or side mismatch in cancel order validation");
+//             return false;
+//         }
         
-        // Convert addresses to symbols
-        const baseAssetSymbol = taskController.token_address_symbol_mapping[baseAsset];
-        const quoteAssetSymbol = taskController.token_address_symbol_mapping[quoteAsset];
+//         // Convert addresses to symbols
+//         const baseAssetSymbol = taskController.token_address_symbol_mapping[baseAsset];
+//         const quoteAssetSymbol = taskController.token_address_symbol_mapping[quoteAsset];
         
-        if (!baseAssetSymbol || !quoteAssetSymbol) {
-            console.error("Invalid token addresses in cancel order request");
-            return false;
-        }
+//         if (!baseAssetSymbol || !quoteAssetSymbol) {
+//             console.error("Invalid token addresses in cancel order request");
+//             return false;
+//         }
         
-        // Call the orderbook service to cancel the order
-        const formData = new FormData();
-        formData.append('payload', JSON.stringify({
-            orderId: orderId.toString(),
-            side: side,
-            baseAsset: baseAssetSymbol,
-            quoteAsset: quoteAssetSymbol
-        }));
+//         // Call the orderbook service to cancel the order
+//         const formData = new FormData();
+//         formData.append('payload', JSON.stringify({
+//             orderId: orderId.toString(),
+//             side: side,
+//             baseAsset: baseAssetSymbol,
+//             quoteAsset: quoteAssetSymbol
+//         }));
         
-        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/cancel_order`, {
-            method: 'POST',
-            body: formData
-        });
+//         const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/cancel_order`, {
+//             method: 'POST',
+//             body: formData
+//         });
         
-        if (!response.ok) {
-            console.error("Failed to cancel order in orderbook");
-            return false;
-        }
+//         if (!response.ok) {
+//             console.error("Failed to cancel order in orderbook");
+//             return false;
+//         }
         
-        const cancelData = await response.json();
+//         const cancelData = await response.json();
         
-        // Verify the cancellation was successful
-        if (!cancelData.order || cancelData.status_code !== 1) {
-            console.error("Order cancellation failed or returned invalid data");
-            return false;
-        }
+//         // Verify the cancellation was successful
+//         if (!cancelData.order || cancelData.status_code !== 1) {
+//             console.error("Order cancellation failed or returned invalid data");
+//             return false;
+//         }
         
-        // Generate our own proof of task and compare
-        const generatedProofOfTask = `CancelOrder-${side}-${cancelData.order.orderId}-${timestampFromProof}`;
+//         // Generate our own proof of task and compare
+//         const generatedProofOfTask = `CancelOrder-${side}-${cancelData.order.orderId}-${timestampFromProof}`;
         
-        const result = proofOfTask === generatedProofOfTask;
+//         const result = proofOfTask === generatedProofOfTask;
         
-        if (!result) {
-            console.error(`Proof of task mismatch. Expected: ${proofOfTask}, Generated: ${generatedProofOfTask}`);
-        }
+//         if (!result) {
+//             console.error(`Proof of task mismatch. Expected: ${proofOfTask}, Generated: ${generatedProofOfTask}`);
+//         }
         
-        return result;
-    } catch (err) {
-        console.error("Error validating cancel order:", err);
-        return false;
-    }
-}
+//         return result;
+//     } catch (err) {
+//         console.error("Error validating cancel order:", err);
+//         return false;
+//     }
+// }
 
 module.exports = {
     validate,
     validateWithdrawal,
-    validateCancelOrder
+    // validateCancelOrder
 }
