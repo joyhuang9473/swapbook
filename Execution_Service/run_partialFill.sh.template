@@ -21,6 +21,3 @@ curl -X POST http://localhost:4003/api/limitOrder \
     "baseAsset": "0x56875639b6A79E44b9c81a187a3d9172D6D30560",
     "quoteAsset": "0xec863cA2A3895Dcc9f16b255c51A392B27184840"
 }'
-
-# CreateOrder -> CreateOrder -> FillOrder -> UpdateBestPrice
-

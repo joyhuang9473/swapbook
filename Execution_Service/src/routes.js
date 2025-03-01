@@ -430,10 +430,10 @@ router.post("/limitOrder", async (req, res) => {
         }
 
         // Check the necessary data is included correctly from the Order Book (only task 4)
-        if (data.taskId == 4 && data.nextBest == undefined) {
+        // if (data.taskId == 4 && data.nextBest == undefined) {
             // Complete order fill, need details of next best order on other side
-            throw new CustomError(`Next best order details required for Complete Order Fill`, data);
-        }
+            // throw new CustomError(`Next best order details required for Complete Order Fill`, data);
+        // }
 
         // Should include order ID for newly inserted order
         if (data.order.orderId == undefined) {
@@ -480,19 +480,36 @@ router.post("/limitOrder", async (req, res) => {
             // Task 2: need order
             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
         } else if (data.taskId == 4) {
-            // Task 4: need order and next best
-            const nextBestOrder = {
-                orderId: data.nextBestOrder.orderId,
-                account: data.nextBestOrder.account,
-                sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBestOrder.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
-                amount: ethers.parseUnits(data.nextBestOrder.quantity.toString(), TOKENS[baseSymbol].decimals),
-                isBid: data.nextBestOrder.side == 'bid',
-                baseAsset: TOKENS[baseSymbol].address,
-                quoteAsset: TOKENS[quoteSymbol].address,
-                quoteAmount: ethers.parseUnits((data.nextBestOrder.price * data.nextBestOrder.quantity).toString(), TOKENS[quoteSymbol].decimals),
-                isValid: true, // Not sure what this is for (prev: data['order']['isValid'])
-                timestamp: ethers.parseUnits(data.nextBestOrder.timestamp, TOKENS[baseSymbol].decimals)
-            };
+            let nextBestOrder = null;
+
+            if (data.nextBest == undefined) {
+                nextBestOrder = {
+                    orderId: data.order.orderId,
+                    account: data.order.account,
+                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.order.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
+                    amount: ethers.parseUnits(data.order.quantity.toString(), TOKENS[baseSymbol].decimals),
+                    isBid: data.order.side == 'bid',
+                    baseAsset: TOKENS[baseSymbol].address,
+                    quoteAsset: TOKENS[quoteSymbol].address,
+                    quoteAmount: ethers.parseUnits((data.order.price * data.order.quantity).toString(), TOKENS[quoteSymbol].decimals),
+                    isValid: false, // just clean up the best price in the contract
+                    timestamp: ethers.parseUnits(data.order.timestamp, TOKENS[baseSymbol].decimals)
+                }
+            } else {
+                // Task 4: need order and next best
+                nextBestOrder = {
+                    orderId: data.nextBestOrder.orderId,
+                    account: data.nextBestOrder.account,
+                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBestOrder.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
+                    amount: ethers.parseUnits(data.nextBestOrder.quantity.toString(), TOKENS[baseSymbol].decimals),
+                    isBid: data.nextBestOrder.side == 'bid',
+                    baseAsset: TOKENS[baseSymbol].address,
+                    quoteAsset: TOKENS[quoteSymbol].address,
+                    quoteAmount: ethers.parseUnits((data.nextBestOrder.price * data.nextBestOrder.quantity).toString(), TOKENS[quoteSymbol].decimals),
+                    isValid: true,
+                    timestamp: ethers.parseUnits(data.nextBestOrder.timestamp, TOKENS[baseSymbol].decimals)
+                };
+            }
 
             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature, orderStructSignature], [order, nextBestOrder]);
         }
