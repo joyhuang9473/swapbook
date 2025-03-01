@@ -17,6 +17,7 @@ let isOrderBookLocked = false;
 let currentProcessingOrderId = null;
 let currentProcessingWithdrawalId = null;
 let provider;
+let avsHookContract;
 
 // Setup contract event polling for order settlement events
 async function setupContractEventPolling() {
@@ -31,7 +32,14 @@ async function setupContractEventPolling() {
     if (!provider) {
         throw new CustomError("Failed to initialize provider", {});
     }
-    const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
+    avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
+
+    // Log available events from the ABI
+    console.log('Available events in ABI:', 
+        P2POrderBookABI
+            .filter(item => item.type === 'event')
+            .map(event => event.name)
+    );
 
     // Start polling for events
     setInterval(async () => {
@@ -40,48 +48,88 @@ async function setupContractEventPolling() {
             const latestBlock = await provider.getBlockNumber();
             const fromBlock = Math.max(0, latestBlock - 10); // Look back 10 blocks
 
-            // Split event queries into two batches to stay within the 3-request limit
-            const events1 = await Promise.all([
-                avsHookContract.queryFilter('UpdateBestOrder', fromBlock),
-                // avsHookContract.queryFilter('PartialFillOrder', fromBlock)
-            ]);
+            // Find the UpdateBestOrder event definition in the ABI
+            const updateBestOrderEvent = P2POrderBookABI.find(
+                item => item.type === 'event' && item.name === 'UpdateBestOrder'
+            );
 
-            const events2 = await Promise.all([
-                // avsHookContract.queryFilter('CompleteFillOrder', fromBlock),
-                // avsHookContract.queryFilter('WithdrawalProcessed', fromBlock)
-            ]);
-
-
-
-
-            // Combine the results
-            const events = [...events1, ...events2];
-
-            // Process UpdateBestOrder events
-            for (const event of events[0]) {
-                const [orderId, maker, baseAsset, quoteAsset, sqrtPrice, amount] = event.args;
-                handleUpdateBestOrder(orderId, maker, baseAsset, quoteAsset, sqrtPrice, amount);
+            if (!updateBestOrderEvent) {
+                throw new Error('UpdateBestOrder event not found in ABI');
             }
 
-            // Process PartialFillOrder events
-            // for (const event of events[1]) {
-            //     const [takerOrderId, makerOrderId] = event.args;
-            //     handlePartialFillOrder(takerOrderId, makerOrderId);
-            // }
+            // Create event filter using the event signature
+            const eventSignature = `UpdateBestOrder(uint256,address,address,address,uint256,uint256)`;
+            const eventFilter = {
+                address: avsHookAddress,
+                topics: [ethers.id(eventSignature)]
+            };
 
-            // Process CompleteFillOrder events
-            // for (const event of events[2]) {
-            //     const [makerOrderId, takerOrderId] = event.args;
-            //     handleCompleteFillOrder(makerOrderId, takerOrderId);
-            // }
+            const updateBestOrderEvents = await provider.getLogs({
+                ...eventFilter,
+                fromBlock,
+                toBlock: latestBlock
+            });
 
-            // Process WithdrawalProcessed events
-            // for (const event of events[3]) {
-                // const [account, asset, amount] = event.args;
-                // handleWithdrawalProcessed(account, asset, amount);
-            // }
+            // Process UpdateBestOrder events
+            for (const event of updateBestOrderEvents) {
+                try {
+                    // If topics don't match, try to find the matching event
+                    const matchingEvent = P2POrderBookABI.find(
+                        item => item.type === 'event' && 
+                        ethers.id(item.name + '(' + item.inputs.map(i => i.type).join(',') + ')') === event.topics[0]
+                    );
+                    
+                    if (matchingEvent) {
+                        // Use the matching event fragment
+                        const decodedEvent = avsHookContract.interface.decodeEventLog(
+                            matchingEvent.name,
+                            event.data,
+                            event.topics
+                        );
+
+                        // Access args directly from decodedEvent
+                        const orderId = decodedEvent.orderId;
+                        const maker = decodedEvent.maker;
+                        const baseAsset = decodedEvent.baseAsset;
+                        const quoteAsset = decodedEvent.quoteAsset;
+                        const sqrtPrice = decodedEvent.sqrtPrice;
+                        const amount = decodedEvent.amount;
+
+                        // matchingEvent.name is the event name and the event hasn't been handled yet
+                        if (matchingEvent.name === 'UpdateBestOrder' && !isOrderBookLocked) {
+                            await handleUpdateBestOrder(orderId, maker, baseAsset, quoteAsset, sqrtPrice, amount);
+                        }
+                    } else {
+                        console.error('[EVENT] No matching event found for topic:', event.topics[0]);
+                    }
+                } catch (eventError) {
+                    console.error('[EVENT] Error processing individual event:', eventError);
+                    console.error('[EVENT] Event details:', {
+                        topics: event.topics,
+                        data: event.data,
+                        address: event.address
+                    });
+                    
+                    // Log the ABI for debugging
+                    console.log('[EVENT] Available events in ABI:', 
+                        P2POrderBookABI
+                            .filter(item => item.type === 'event')
+                            .map(event => ({
+                                name: event.name,
+                                signature: event.name + '(' + event.inputs.map(i => i.type).join(',') + ')',
+                                hash: ethers.id(event.name + '(' + event.inputs.map(i => i.type).join(',') + ')')
+                            }))
+                    );
+                }
+            }
+
         } catch (error) {
-            console.error('Error polling for events:', error);
+            console.error('[EVENT] Error polling for events:', error);
+            console.error('[EVENT] Error details:', {
+                message: error.message,
+                code: error.code,
+                stack: error.stack
+            });
         }
     }, 5000); // Poll every 5 seconds
 }
@@ -100,7 +148,7 @@ function handleUpdateBestOrder(orderId, maker, baseAsset, quoteAsset, sqrtPrice,
         return;
     }
     
-    unlockOrderBookAndProcessNextOrder();
+    // unlockOrderBookAndProcessNextOrder();
 }
 
 // Similar handler functions for other events...
@@ -120,245 +168,245 @@ function handleWithdrawalProcessed(account, asset, amount) {
 setupContractEventPolling().catch(console.error);
 
 // Function to unlock order book and process the next order in the queue
-async function unlockOrderBookAndProcessNextOrder() {
-    console.log("Unlocking order book and processing next order...");
-    currentProcessingOrderId = null;
-    currentProcessingWithdrawalId = null;
-    isOrderBookLocked = false;
+// async function unlockOrderBookAndProcessNextOrder() {
+//     console.log("Unlocking order book and processing next order...");
+//     currentProcessingOrderId = null;
+//     currentProcessingWithdrawalId = null;
+//     isOrderBookLocked = false;
 
-    if (orderQueue.length > 0) {
-        const nextOrder = orderQueue.shift();
-        console.log(`Processing next order from queue. Queue length: ${orderQueue.length}`);
+//     if (orderQueue.length > 0) {
+//         const nextOrder = orderQueue.shift();
+//         console.log(`Processing next order from queue. Queue length: ${orderQueue.length}`);
         
-        try {
-            await processOrder(nextOrder.orderData, nextOrder.res);
-        } catch (error) {
-            console.error("Error processing queued order:", error);
-            nextOrder.res.status(500).send(new CustomError("Error processing queued order", { error: error.message }));
+//         try {
+//             await processOrder(nextOrder.orderData, nextOrder.res);
+//         } catch (error) {
+//             console.error("Error processing queued order:", error);
+//             nextOrder.res.status(500).send(new CustomError("Error processing queued order", { error: error.message }));
             
-            // Make sure we're unlocked before processing the next order
-            isOrderBookLocked = false;
-            currentProcessingOrderId = null;
+//             // Make sure we're unlocked before processing the next order
+//             isOrderBookLocked = false;
+//             currentProcessingOrderId = null;
             
-            // Continue with next order
-            setTimeout(unlockOrderBookAndProcessNextOrder, 0);
-        }
-    } else {
-        console.log("Order queue is empty");
-    }
-}
+//             // Continue with next order
+//             setTimeout(unlockOrderBookAndProcessNextOrder, 0);
+//         }
+//     } else {
+//         console.log("Order queue is empty");
+//     }
+// }
 
 // Main function to process an order
-async function processOrder(orderData, res) {
-    try {
-        isOrderBookLocked = true;
+// async function processOrder(orderData, res) {
+//     try {
+//         isOrderBookLocked = true;
         
-        const { account, price, quantity, side, baseAsset, quoteAsset, signature } = orderData;
+//         const { account, price, quantity, side, baseAsset, quoteAsset, signature } = orderData;
 
-        // Step 1: Verify that the signature comes from the account address
-        // Recreate the message that was signed on the frontend
-        const orderDataObj = {
-            price: price,
-            quantity: quantity,
-            side: side,
-            baseAsset: baseAsset,
-            quoteAsset: quoteAsset
-        };
+//         // Step 1: Verify that the signature comes from the account address
+//         // Recreate the message that was signed on the frontend
+//         const orderDataObj = {
+//             price: price,
+//             quantity: quantity,
+//             side: side,
+//             baseAsset: baseAsset,
+//             quoteAsset: quoteAsset
+//         };
         
-        // Convert the order data to the same format used for signing in the frontend
-        const orderMessage = JSON.stringify(orderDataObj);
+//         // Convert the order data to the same format used for signing in the frontend
+//         const orderMessage = JSON.stringify(orderDataObj);
         
-        // Get message hash - must match the exact method used in frontend with MetaMask
-        // This assumes the frontend used personal_sign which prefixes with Ethereum message prefix
-        const messageHash = ethers.hashMessage(orderMessage);
+//         // Get message hash - must match the exact method used in frontend with MetaMask
+//         // This assumes the frontend used personal_sign which prefixes with Ethereum message prefix
+//         const messageHash = ethers.hashMessage(orderMessage);
         
-        // Recover the address from the signature
-        let recoveredAddress;
-        try {
-            recoveredAddress = ethers.recoverAddress(messageHash, signature);
-        } catch (error) {
-            throw new CustomError("Invalid signature format", { error: error.message });
-        }
+//         // Recover the address from the signature
+//         let recoveredAddress;
+//         try {
+//             recoveredAddress = ethers.recoverAddress(messageHash, signature);
+//         } catch (error) {
+//             throw new CustomError("Invalid signature format", { error: error.message });
+//         }
         
-        // Verify that the recovered address matches the account in the request
-        if (recoveredAddress.toLowerCase() !== account.toLowerCase()) {
-            throw new CustomError("Signature verification failed: signer does not match account", {
-                providedAccount: account,
-                recoveredSigner: recoveredAddress
-            });
-        }
+//         // Verify that the recovered address matches the account in the request
+//         if (recoveredAddress.toLowerCase() !== account.toLowerCase()) {
+//             throw new CustomError("Signature verification failed: signer does not match account", {
+//                 providedAccount: account,
+//                 recoveredSigner: recoveredAddress
+//             });
+//         }
         
-        // Step 2: Check that the user has escrowed enough funds on the contract
-        // Get contract address from environment variable
-        const avsHookAddress = process.env.AVS_HOOK_ADDRESS;
-        if (!avsHookAddress) {
-            throw new CustomError("AVS_HOOK_ADDRESS environment variable is not set", {});
-        }
+//         // Step 2: Check that the user has escrowed enough funds on the contract
+//         // Get contract address from environment variable
+//         const avsHookAddress = process.env.AVS_HOOK_ADDRESS;
+//         if (!avsHookAddress) {
+//             throw new CustomError("AVS_HOOK_ADDRESS environment variable is not set", {});
+//         }
 
-        // Create contract instance to check escrowed funds using full ABI
-        const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, ethers.provider);
+//         // Create contract instance to check escrowed funds using full ABI
+//         const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, ethers.provider);
 
-        // Get token addresses from the TOKENS object
-        const baseTokenAddress = TOKENS[baseAsset]?.address;
-        const quoteTokenAddress = TOKENS[quoteAsset]?.address;
+//         // Get token addresses from the TOKENS object
+//         const baseTokenAddress = TOKENS[baseAsset]?.address;
+//         const quoteTokenAddress = TOKENS[quoteAsset]?.address;
         
-        if (!baseTokenAddress || !quoteTokenAddress) {
-            throw new CustomError("Invalid token symbols", { baseAsset, quoteAsset });
-        }
+//         if (!baseTokenAddress || !quoteTokenAddress) {
+//             throw new CustomError("Invalid token symbols", { baseAsset, quoteAsset });
+//         }
 
-        // Calculate required amounts based on order side
-        let requiredToken, requiredAmount;
+//         // Calculate required amounts based on order side
+//         let requiredToken, requiredAmount;
         
-        if (side === 'bid') {
-            // For bid orders (buying), check quote asset (e.g., USDC in WETH/USDC)
-            requiredToken = quoteTokenAddress;
+//         if (side === 'bid') {
+//             // For bid orders (buying), check quote asset (e.g., USDC in WETH/USDC)
+//             requiredToken = quoteTokenAddress;
             
-            // Calculate quote amount if not directly available
-            // bid orders need price * quantity of quote asset
-            requiredAmount = ethers.parseUnits((price * quantity).toString(), TOKENS[quoteAsset].decimals);
-        } else if (side === 'ask') {
-            // For ask orders (selling), check base asset (e.g., WETH in WETH/USDC)
-            requiredToken = baseTokenAddress;
+//             // Calculate quote amount if not directly available
+//             // bid orders need price * quantity of quote asset
+//             requiredAmount = ethers.parseUnits((price * quantity).toString(), TOKENS[quoteAsset].decimals);
+//         } else if (side === 'ask') {
+//             // For ask orders (selling), check base asset (e.g., WETH in WETH/USDC)
+//             requiredToken = baseTokenAddress;
             
-            // ask orders need the base asset quantity
-            requiredAmount = ethers.parseUnits(quantity.toString(), TOKENS[baseAsset].decimals);
-        } else {
-            throw new CustomError("Invalid order side", { side });
-        }
+//             // ask orders need the base asset quantity
+//             requiredAmount = ethers.parseUnits(quantity.toString(), TOKENS[baseAsset].decimals);
+//         } else {
+//             throw new CustomError("Invalid order side", { side });
+//         }
 
-        // Check if user has enough escrowed funds
-        const escrowedAmount = await avsHookContract.escrowedFunds(account, requiredToken);
+//         // Check if user has enough escrowed funds
+//         const escrowedAmount = await avsHookContract.escrowedFunds(account, requiredToken);
         
-        if (escrowedAmount < requiredAmount) {
-            throw new CustomError("Insufficient escrowed funds", {
-                required: ethers.formatUnits(requiredAmount, side === 'bid' ? TOKENS[quoteAsset].decimals : TOKENS[baseAsset].decimals),
-                available: ethers.formatUnits(escrowedAmount, side === 'bid' ? TOKENS[quoteAsset].decimals : TOKENS[baseAsset].decimals),
-                asset: side === 'bid' ? quoteAsset : baseAsset
-            });
-        }
+//         if (escrowedAmount < requiredAmount) {
+//             throw new CustomError("Insufficient escrowed funds", {
+//                 required: ethers.formatUnits(requiredAmount, side === 'bid' ? TOKENS[quoteAsset].decimals : TOKENS[baseAsset].decimals),
+//                 available: ethers.formatUnits(escrowedAmount, side === 'bid' ? TOKENS[quoteAsset].decimals : TOKENS[baseAsset].decimals),
+//                 asset: side === 'bid' ? quoteAsset : baseAsset
+//             });
+//         }
 
-        // Step 3: Order book
-        const timestamp = Date.now();
+//         // Step 3: Order book
+//         const timestamp = Date.now();
 
-        const formData = new FormData();
-        formData.append('payload', JSON.stringify({
-            account: account,
-            price: Number(price),
-            quantity: Number(quantity),
-            side: side,
-            baseAsset: baseAsset,
-            quoteAsset: quoteAsset,
-            timestamp: timestamp
-        }));
+//         const formData = new FormData();
+//         formData.append('payload', JSON.stringify({
+//             account: account,
+//             price: Number(price),
+//             quantity: Number(quantity),
+//             side: side,
+//             baseAsset: baseAsset,
+//             quoteAsset: quoteAsset,
+//             timestamp: timestamp
+//         }));
 
-        // Send order to order book service
-        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/register_order`, {
-            method: 'POST',
-            body: formData
-        });
+//         // Send order to order book service
+//         const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/register_order`, {
+//             method: 'POST',
+//             body: formData
+//         });
         
-        const data = await response.json();
+//         const data = await response.json();
 
-        // Check if the response is valid
-        if (!response.ok) {
-            throw new CustomError(data.error || data.message || `Failed to create order: HTTP status ${response.status}`, data);
-        }
+//         // Check if the response is valid
+//         if (!response.ok) {
+//             throw new CustomError(data.error || data.message || `Failed to create order: HTTP status ${response.status}`, data);
+//         }
 
-        // Check we haven't failed to enter order into order book
-        if (data.status_code === 0) {
-            throw new CustomError(`Failed to create order: ${data.message}`, data);
-        }
+//         // Check we haven't failed to enter order into order book
+//         if (data.status_code === 0) {
+//             throw new CustomError(`Failed to create order: ${data.message}`, data);
+//         }
 
-        // Set the current processing order ID
-        currentProcessingOrderId = data.order.orderId.toString();
+//         // Set the current processing order ID
+//         currentProcessingOrderId = data.order.orderId.toString();
         
-        // For Task 1 (no-op), no need to wait for an event, unlock immediately
-        if (data.taskId === 1) {
-            console.log("Task 1 (no-op) doesn't require waiting for an event");
+//         // For Task 1 (no-op), no need to wait for an event, unlock immediately
+//         if (data.taskId === 1) {
+//             console.log("Task 1 (no-op) doesn't require waiting for an event");
             
-            // Still send the order data to the contract (to maintain consistent behavior)
-            const result = await dalService.sendTaskToContract(
-                `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`,
-                "", // No messageData for Task 1
-                data.taskId
-            );
+//             // Still send the order data to the contract (to maintain consistent behavior)
+//             const result = await dalService.sendTaskToContract(
+//                 `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`,
+//                 "", // No messageData for Task 1
+//                 data.taskId
+//             );
             
-            if (!result) {
-                throw new CustomError("Error in forwarding task from Performer", {});
-            }
+//             if (!result) {
+//                 throw new CustomError("Error in forwarding task from Performer", {});
+//             }
             
-            // Return successful response immediately
-            res.status(200).send(new CustomResponse(data));
+//             // Return successful response immediately
+//             res.status(200).send(new CustomResponse(data));
             
-            // Unlock immediately since there's no on-chain event to wait for
-            setTimeout(unlockOrderBookAndProcessNextOrder, 0);
-            return;
-        }
+//             // Unlock immediately since there's no on-chain event to wait for
+//             setTimeout(unlockOrderBookAndProcessNextOrder, 0);
+//             return;
+//         }
 
-        // For Tasks 2-4, we need to prepare the messageData and send it to the contract
-        let messageData;
-        const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
+//         // For Tasks 2-4, we need to prepare the messageData and send it to the contract
+//         let messageData;
+//         const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
 
-        // Prepare the order object for encoding
-        const order = {
-            orderId: data.order.orderId,
-            account: account,
-            sqrtPrice: ethers.parseUnits(Math.sqrt(price).toString(), TOKENS[quoteAsset].decimals), // sqrt price used to compare with on-chain prices (e.g. on an AMM)
-            amount: ethers.parseUnits(quantity.toString(), TOKENS[baseAsset].decimals),
-            isBid: side === 'bid',
-            baseAsset: TOKENS[baseAsset].address,
-            quoteAsset: TOKENS[quoteAsset].address,
-            quoteAmount: ethers.parseUnits((price * quantity).toString(), TOKENS[quoteAsset].decimals),
-            isValid: true, // Not sure what this is for (prev: data['order']['isValid'])
-            timestamp: timestamp.toString()
-        };
+//         // Prepare the order object for encoding
+//         const order = {
+//             orderId: data.order.orderId,
+//             account: account,
+//             sqrtPrice: ethers.parseUnits(Math.sqrt(price).toString(), TOKENS[quoteAsset].decimals), // sqrt price used to compare with on-chain prices (e.g. on an AMM)
+//             amount: ethers.parseUnits(quantity.toString(), TOKENS[baseAsset].decimals),
+//             isBid: side === 'bid',
+//             baseAsset: TOKENS[baseAsset].address,
+//             quoteAsset: TOKENS[quoteAsset].address,
+//             quoteAmount: ethers.parseUnits((price * quantity).toString(), TOKENS[quoteAsset].decimals),
+//             isValid: true, // Not sure what this is for (prev: data['order']['isValid'])
+//             timestamp: timestamp.toString()
+//         };
 
-        // Prepare messageData based on task ID
-        if (data.taskId === 2 || data.taskId === 3) {
-            messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
-        } else if (data.taskId === 4) {
-            const nextBestOrder = {
-                orderId: data.nextBest.orderId,
-                account: data.nextBest.account,
-                sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteAsset].decimals),
-                amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseAsset].decimals),
-                isBid: data.nextBest.side === 'bid',
-                baseAsset: TOKENS[baseAsset].address,
-                quoteAsset: TOKENS[quoteAsset].address,
-                quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteAsset].decimals),
-                isValid: true, // still not sure what this is for
-                timestamp: timestamp.toString()
-            };
+//         // Prepare messageData based on task ID
+//         if (data.taskId === 2 || data.taskId === 3) {
+//             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
+//         } else if (data.taskId === 4) {
+//             const nextBestOrder = {
+//                 orderId: data.nextBest.orderId,
+//                 account: data.nextBest.account,
+//                 sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteAsset].decimals),
+//                 amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseAsset].decimals),
+//                 isBid: data.nextBest.side === 'bid',
+//                 baseAsset: TOKENS[baseAsset].address,
+//                 quoteAsset: TOKENS[quoteAsset].address,
+//                 quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteAsset].decimals),
+//                 isValid: true, // still not sure what this is for
+//                 timestamp: timestamp.toString()
+//             };
             
-            messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature, orderStructSignature], [order, nextBestOrder]);
-        }
-        // TODO: add check that no other task id was passed in
+//             messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature, orderStructSignature], [order, nextBestOrder]);
+//         }
+//         // TODO: add check that no other task id was passed in
 
-        // Prepare the proof of task
-        const proofOfTask = `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
+//         // Prepare the proof of task
+//         const proofOfTask = `Task_${data.taskId}-Order_${data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
         
-        // Send the task to the contract
-        const result = await dalService.sendTaskToContract(proofOfTask, messageData, data.taskId);
+//         // Send the task to the contract
+//         const result = await dalService.sendTaskToContract(proofOfTask, messageData, data.taskId);
 
-        if (!result) {
-            throw new CustomError("Error in forwarding task from Performer", {});
-        }
+//         if (!result) {
+//             throw new CustomError("Error in forwarding task from Performer", {});
+//         }
 
-        // Return successful response
-        res.status(200).send(new CustomResponse({
-            ...data,
-            queuePosition: 0, // Currently processing
-            message: `Order submitted successfully${data.taskId > 1 ? " and waiting for on-chain confirmation" : ""}`
-        }));
+//         // Return successful response
+//         res.status(200).send(new CustomResponse({
+//             ...data,
+//             queuePosition: 0, // Currently processing
+//             message: `Order submitted successfully${data.taskId > 1 ? " and waiting for on-chain confirmation" : ""}`
+//         }));
 
-        // For Task 2-4, we wait for the appropriate event (handled by the event listeners)
-        // The event listeners will call unlockOrderBookAndProcessNextOrder when the event is received
+//         // For Task 2-4, we wait for the appropriate event (handled by the event listeners)
+//         // The event listeners will call unlockOrderBookAndProcessNextOrder when the event is received
 
-    } catch (error) {
-        console.error('Error processing order:', error);
-        throw error; // Re-throw to be handled by the caller
-    }
-}
+//     } catch (error) {
+//         console.error('Error processing order:', error);
+//         throw error; // Re-throw to be handled by the caller
+//     }
+// }
 
 // Copied from config.json in Frontend_Service, TODO move to repo base and reference that
 const TOKENS = {
@@ -401,7 +449,7 @@ router.post("/limitOrder", async (req, res) => {
         if (!avsHookAddress) {
             throw new CustomError("AVS_HOOK_ADDRESS environment variable is not set", {});
         }
-        const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
+        // const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
         const baseEscrowedBalance = await avsHookContract.escrowedFunds(orderData['account'], orderData['baseAsset']);
         const quoteEscrowedBalance = await avsHookContract.escrowedFunds(orderData['account'], orderData['quoteAsset']);
 
@@ -704,7 +752,7 @@ router.post("/initiateWithdrawal", async (req, res) => {
         if (!provider) {
             throw new CustomError("Failed to initialize provider", {});
         }
-        const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
+        // const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
     
         // Check on-chain escrow balance
         const escrowedBalance = await avsHookContract.escrowedFunds(account, asset);
