@@ -9,6 +9,7 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {IAvsLogic} from "./interfaces/IAvsLogic.sol";
 import {IAttestationCenter} from "./interfaces/IAttestationCenter.sol";
 import {console} from "forge-std/console.sol";
@@ -38,6 +39,7 @@ struct BestPrices {
 // Limitation: For now, we store just best bid and best ask on-chain (for each token)
 contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
     using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
     using Address for address payable;
 
     address public immutable ATTESTATION_CENTER;
@@ -428,6 +430,25 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         });
     }
 
+    // Data passed: user performing swap, base asset (as seen in hook contract), quote asset (as before), isBid
+    // We pass in base and quote asset (instead of unwrapping pool tokens) so we don't need a direction check in the hook
+    function getHookData(
+        address user,
+        address baseAsset,
+        address quoteAsset,
+        bool isBid
+    ) public pure returns (bytes memory) {
+        return abi.encode(user, baseAsset, quoteAsset, isBid);
+    }
+
+    // Data passed: user performing swap, base asset (as seen in hook contract), quote asset (as before), isBid
+    // We pass in base and quote asset (instead of unwrapping pool tokens) so we don't need a direction check in the hook
+    function parseHookData(
+        bytes calldata data
+    ) public pure returns (address user, address baseAsset, address quoteAsset, bool isBid) {
+        return abi.decode(data, (address, address, address, bool));
+    }
+
     function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata hookData)
         internal
         virtual
@@ -435,63 +456,34 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        // Get swap info from hook data
+        (address user, address baseAsset, address quoteAsset, bool isBid) = parseHookData(hookData);
 
-        // 0 is base, 1 is quote
-        BestPrices storage direction01 = bestBidAndAsk[Currency.unwrap(key.currency0)][Currency.unwrap(key.currency1)];
-        
-        // 1 is base, 0 is quote
-        BestPrices storage direction10 = bestBidAndAsk[Currency.unwrap(key.currency1)][Currency.unwrap(key.currency0)];
+        // Get pool price (best possible price, for large orders it gets worse)
+        (uint160 poolSqrtPrice,,,) = poolManager.getSlot0(key.toId());
 
-        // See if it's a buy or sell:
+        // Get opposing order
+        BestPrices storage bestPrice = bestBidAndAsk[baseAsset][quoteAsset];
+        Order storage opposingOrder = (isBid) ? bestPrice.ask : bestPrice.bid;
 
-        Order memory opposingOrder;
-
-        // Figure out token amount spent
-        uint256 token0SpendAmount = swapParams.amountSpecified < 0
-            ? uint256(-swapParams.amountSpecified)
-            : uint256(int256(-swapParams.amountSpecified));
-        
-        if (swapParams.zeroForOne) {
-            // Wants to swap token0 for token1 (either sell direction01 or buy direction 10)
-            // If selling direction01, must fill a bid
-            // If buying direction10, must fill an ask
-            if (direction01.bid.isValid) {
-                // opposing order found, check price is better
-                if (direction01.bid.sqrtPrice < swapParams.sqrtPriceLimitX96 && direction01.bid.amount <= token0SpendAmount) {
-                    // swap with contract
-                    opposingOrder = direction01.bid;
-                }
-            } else if (direction10.ask.isValid) {
-                if (direction10.ask.sqrtPrice > swapParams.sqrtPriceLimitX96 && direction10.ask.amount <= token0SpendAmount) {
-                    // swap with contract
-                    opposingOrder = direction10.ask;
-                }
-            }
-        } else {
-            // Wants to swap token1 for token0 (either buy direction01 or sell direction 10)
-            // If buying direction01, must fill an ask
-            // If selling direction10, must fill a bid
-            if (direction01.ask.isValid) {
-                // opposing order found, check price is better
-                if (direction01.ask.sqrtPrice > swapParams.sqrtPriceLimitX96 && direction01.ask.amount <= token0SpendAmount) {
-                    // swap with contract
-                    opposingOrder = direction01.ask;
-                }
-            } else if (direction10.bid.isValid) {
-                if (direction10.bid.sqrtPrice < swapParams.sqrtPriceLimitX96 && direction10.bid.amount <= token0SpendAmount) {
-                    // swap with contract
-                    opposingOrder = direction10.bid;
-                }
-            }
+        // Check if rerouting to book is cheaper
+        if (
+            !opposingOrder.isValid || // proceed as normal if no opposing order
+            (isBid && opposingOrder.sqrtPrice > poolSqrtPrice) || // or if book is more expensive for bids
+            (!isBid && opposingOrder.sqrtPrice < poolSqrtPrice) // or book is cheaper for asks
+        ) {
+            // This means proceed with swap as normal (with pool)
+            return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
         }
 
-        if (opposingOrder.isValid) {
-            // We are swapping with the contract
-            address user = abi.decode(hookData, (address));
+        // Book is cheaper: swap there instead of pool
 
-        } else {
-            // Proceed with AMM swap as normal (WIP)
-        }
+        // // Figure out token amount spent (note this may be wrong, calculate other token amt?)
+        // uint256 token0SpendAmount = swapParams.amountSpecified < 0
+        //     ? uint256(-swapParams.amountSpecified)
+        //     : uint256(int256(-swapParams.amountSpecified));
+
+        // WIP
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
     }
