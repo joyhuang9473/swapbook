@@ -449,6 +449,12 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         return abi.decode(data, (address, address, address, bool));
     }
 
+    /** HOW WE REROUTE ORDERS
+     * afterSwap: write an after swap hook. if the user could have gotten a better price on the order book than
+     *   on the pool, swap with the order book now, then reimburse the user with the difference (+ the pool fees).
+     * Note the code below is an outdated and incomplete implementation using the beforeSwap hook.
+     */
+
     function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata hookData)
         internal
         virtual
@@ -483,81 +489,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
         //     ? uint256(-swapParams.amountSpecified)
         //     : uint256(int256(-swapParams.amountSpecified));
 
-        // WIP
-
         return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
     }
 
 }
-
-
-// function extractOrder(bytes calldata taskData, uint256 offset) pure private returns (Order memory) {
-//     return Order({
-//         orderId: abi.decode(taskData[offset:], (uint256)),
-//         account: abi.decode(taskData[offset + 32:], (address)),
-//         sqrtPrice: abi.decode(taskData[offset + 52:], (uint256)),
-//         amount: abi.decode(taskData[offset + 84:], (uint256)),
-//         isBid: abi.decode(taskData[offset + 116:], (uint8)) == 1,
-//         baseAsset: abi.decode(taskData[offset + 117:], (address)),
-//         quoteAsset: abi.decode(taskData[offset + 137:], (address)),
-//         quoteAmount: abi.decode(taskData[offset + 157:], (uint256)),
-//         isValid: abi.decode(taskData[offset + 189:], (uint8)) == 1,
-//         timestamp: abi.decode(taskData[offset + 190:], (uint256))
-//     });
-// }
-
-// function extractOrders(bytes calldata taskData) pure private returns (Order memory, Order memory) {
-
-//     Order memory order1 = extractOrder(taskData, 0);
-//     Order memory order2 = extractOrder(taskData, 222);
-
-//     return (order1, order2);
-// }
-
-// (Order memory order, Order memory newBest) = extractOrders(taskData);
-
-// struct OrderData {
-//     uint256 orderId;
-//     address account;
-//     uint256 sqrtPrice;
-//     uint256 amount;
-//     uint8 isBid;
-//     address baseAsset;
-//     address quoteAsset;
-//     uint256 quoteAmount;
-//     uint8 isValid;
-//     uint256 timestamp;
-// }
-
-
-// OrderData memory 
-// OrderData memory orderData2;
-
-// {
-//     (
-//         // First order
-//         orderData1.orderId, orderData1.account, orderData1.sqrtPrice, orderData1.amount, orderData1.isBid, 
-//         orderData1.baseAsset, orderData1.quoteAsset, orderData1.quoteAmount, orderData1.isValid, orderData1.timestamp,
-//         // Second order
-//         orderData2.orderId, orderData2.account, orderData2.sqrtPrice, orderData2.amount, orderData2.isBid, 
-//         orderData2.baseAsset, orderData2.quoteAsset, orderData2.quoteAmount, orderData2.isValid, orderData2.timestamp
-//     ) = abi.decode(
-//         taskData,
-//         (
-//             uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256,
-//             uint256, address, uint256, uint256, uint8, address, address, uint256, uint8, uint256
-//         )
-//     );
-// }
-
-// Order memory order1 = Order(
-//     orderData1.orderId, orderData1.account, orderData1.sqrtPrice, orderData1.amount, 
-//     orderData1.isBid == 1, orderData1.baseAsset, orderData1.quoteAsset, 
-//     orderData1.quoteAmount, orderData1.isValid == 1, orderData1.timestamp
-// );
-
-// Order memory order2 = Order(
-//     orderData2.orderId, orderData2.account, orderData2.sqrtPrice, orderData2.amount, 
-//     orderData2.isBid == 1, orderData2.baseAsset, orderData2.quoteAsset, 
-//     orderData2.quoteAmount, orderData2.isValid == 1, orderData2.timestamp
-// );
