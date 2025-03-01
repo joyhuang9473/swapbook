@@ -198,14 +198,19 @@ const Dashboard = () => {
     try {
       setIsLoading(true);
       const { baseAsset, quoteAsset } = getPairTokens();
-      
+      const placeLimitOrderMessage = `Place limit order ${price} ${baseAsset} for ${quantity} ${quoteAsset}`;
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [placeLimitOrderMessage, account]
+      });
       const response = await orderApi.placeLimitOrder(
         account,
         parseFloat(price),
         parseFloat(quantity),
         side,
         baseAsset,
-        quoteAsset
+        quoteAsset,
+        signature
       );
       
       toast({

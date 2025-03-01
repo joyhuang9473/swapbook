@@ -17,7 +17,7 @@ const api = axios.create({
 // API functions for order operations
 export const orderApi = {
   // Place a limit order
-  placeLimitOrder: async (account, price, quantity, side, baseAsset, quoteAsset) => {
+  placeLimitOrder: async (account, price, quantity, side, baseAsset, quoteAsset, signature) => {
     try {
       const response = await api.post(config.api.endpoints.limitOrder, {
         account,
@@ -25,7 +25,8 @@ export const orderApi = {
         quantity,
         side,
         baseAsset,
-        quoteAsset
+        quoteAsset,
+        signature
       });
       return response.data;
     } catch (error) {

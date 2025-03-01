@@ -16,6 +16,7 @@ const orderQueue = [];
 let isOrderBookLocked = false;
 let currentProcessingOrderId = null;
 let currentProcessingWithdrawalId = null;
+let provider;
 
 // Setup contract event polling for order settlement events
 async function setupContractEventPolling() {
@@ -25,7 +26,7 @@ async function setupContractEventPolling() {
     }
 
     // Initialize ethers provider
-    const provider = new ethers.JsonRpcProvider(process.env.L2_RPC_URL);
+    provider = new ethers.JsonRpcProvider(process.env.L2_RPC_URL);
     
     if (!provider) {
         throw new CustomError("Failed to initialize provider", {});
@@ -380,7 +381,73 @@ router.post("/limitOrder", async (req, res) => {
             quoteAsset: req.body.quoteAsset,
             signature: req.body.signature
         };
-        
+
+        const placeLimitOrderMessage = `Place limit order ${orderData['price']} ${orderData['baseAsset']} for ${orderData['quantity']} ${orderData['quoteAsset']}`;
+        const messageHash = ethers.hashMessage(placeLimitOrderMessage);
+        const recoveredAddress = ethers.recoverAddress(messageHash, orderData['signature']);
+
+        if (recoveredAddress !== orderData['account']) {
+            throw new CustomError("Invalid signature", {});
+        }
+        if (!provider) {
+            throw new CustomError("Failed to initialize provider", {});
+        }
+
+        // step0: retrieve escrowed balance of account
+        const avsHookAddress = process.env.AVS_HOOK_ADDRESS;
+        if (!avsHookAddress) {
+            throw new CustomError("AVS_HOOK_ADDRESS environment variable is not set", {});
+        }
+        const avsHookContract = new ethers.Contract(avsHookAddress, P2POrderBookABI, provider);
+        const baseEscrowedBalance = await avsHookContract.escrowedFunds(orderData['account'], orderData['baseAsset']);
+        const quoteEscrowedBalance = await avsHookContract.escrowedFunds(orderData['account'], orderData['quoteAsset']);
+
+        const formattedBaseEscrowedBalance = ethers.formatUnits(baseEscrowedBalance, TOKENS[taskController.token_address_symbol_mapping[orderData['baseAsset']]].decimals);
+        const formattedQuoteEscrowedBalance = ethers.formatUnits(quoteEscrowedBalance, TOKENS[taskController.token_address_symbol_mapping[orderData['quoteAsset']]].decimals);
+
+        const symbol = orderData['baseAsset'] + "_" + orderData['quoteAsset'];
+        const orderBook = await taskController.generateOrderBook(symbol);
+
+        if (orderData['side'] == 'bid') {
+            let order_balance = 0;
+
+            // Make sure orderBook.orders exists and is an array before iterating
+            const orders = orderBook.orderbook?.bids || [];
+
+            // history of orders made by account
+            for (const order of orders) {
+                if (order['account'] == orderData['account']) {
+                    order_balance += order['price']*order['amount'];
+                }
+            }
+
+            const current_order_balance = orderData['price']*orderData['quantity'];
+            order_balance += current_order_balance;
+
+            if (order_balance > formattedQuoteEscrowedBalance) {
+                throw new CustomError("Insufficient balance", {});
+            }
+        } else if (orderData['side'] == 'ask') {
+            let order_balance = 0;
+
+            // Make sure orderBook.orders exists and is an array before iterating
+            const orders = orderBook.orderbook?.asks || [];
+
+            // history of orders made by account
+            for (const order of orders) {
+                if (order['account'] == orderData['account']) {
+                    order_balance += order['amount'];
+                }
+            }
+
+            const current_order_balance = orderData['quantity'];
+            order_balance += current_order_balance;
+
+            if (order_balance > formattedBaseEscrowedBalance) {
+                throw new CustomError("Insufficient balance", {});
+            }
+        }
+
         // TODO: add check that signature corresponds to (price, quantity, side, baseAsset, quoteAsset) signed by account sender
         if (orderData['signature'] == undefined) {
             orderData['signature'] = "";
