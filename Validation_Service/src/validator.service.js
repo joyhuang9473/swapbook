@@ -65,7 +65,12 @@ async function validate(proofOfTask, data, taskDefinitionId) {
         const order = {
             orderId: decodedData[0].orderId.toString(),
             account: decodedData[0].account,
-            price: Math.pow(Number(ethers.formatUnits(decodedData[0].sqrtPrice, TOKENS[quoteSymbol].decimals)), 2),
+            price: Number(
+                Math.pow(
+                    Number(ethers.formatUnits(decodedData[0].sqrtPrice, TOKENS[quoteSymbol].decimals)),
+                    2
+                ).toFixed(6)
+            ),
             quantity: Number(ethers.formatUnits(decodedData[0].amount, TOKENS[baseSymbol].decimals)),
             side: decodedData[0].isBid ? 'bid' : 'ask',
             baseAsset: decodedData[0].baseAsset,

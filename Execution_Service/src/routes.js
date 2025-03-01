@@ -43,13 +43,16 @@ async function setupContractEventPolling() {
             // Split event queries into two batches to stay within the 3-request limit
             const events1 = await Promise.all([
                 avsHookContract.queryFilter('UpdateBestOrder', fromBlock),
-                avsHookContract.queryFilter('PartialFillOrder', fromBlock)
+                // avsHookContract.queryFilter('PartialFillOrder', fromBlock)
             ]);
 
             const events2 = await Promise.all([
-                avsHookContract.queryFilter('CompleteFillOrder', fromBlock),
-                avsHookContract.queryFilter('WithdrawalProcessed', fromBlock)
+                // avsHookContract.queryFilter('CompleteFillOrder', fromBlock),
+                // avsHookContract.queryFilter('WithdrawalProcessed', fromBlock)
             ]);
+
+
+
 
             // Combine the results
             const events = [...events1, ...events2];
@@ -61,22 +64,22 @@ async function setupContractEventPolling() {
             }
 
             // Process PartialFillOrder events
-            for (const event of events[1]) {
-                const [takerOrderId, makerOrderId] = event.args;
-                handlePartialFillOrder(takerOrderId, makerOrderId);
-            }
+            // for (const event of events[1]) {
+            //     const [takerOrderId, makerOrderId] = event.args;
+            //     handlePartialFillOrder(takerOrderId, makerOrderId);
+            // }
 
             // Process CompleteFillOrder events
-            for (const event of events[2]) {
-                const [makerOrderId, takerOrderId] = event.args;
-                handleCompleteFillOrder(makerOrderId, takerOrderId);
-            }
+            // for (const event of events[2]) {
+            //     const [makerOrderId, takerOrderId] = event.args;
+            //     handleCompleteFillOrder(makerOrderId, takerOrderId);
+            // }
 
             // Process WithdrawalProcessed events
-            for (const event of events[3]) {
-                const [account, asset, amount] = event.args;
-                handleWithdrawalProcessed(account, asset, amount);
-            }
+            // for (const event of events[3]) {
+                // const [account, asset, amount] = event.args;
+                // handleWithdrawalProcessed(account, asset, amount);
+            // }
         } catch (error) {
             console.error('Error polling for events:', error);
         }
@@ -553,7 +556,7 @@ router.post("/limitOrder", async (req, res) => {
                 nextBestOrder = {
                     orderId: data.order.orderId,
                     account: data.order.account,
-                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.order.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
+                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.order.price).toFixed(6), TOKENS[quoteSymbol].decimals), // quote asset won't change
                     amount: ethers.parseUnits(data.order.quantity.toString(), TOKENS[baseSymbol].decimals),
                     isBid: data.order.side == 'bid',
                     baseAsset: TOKENS[baseSymbol].address,
@@ -567,7 +570,7 @@ router.post("/limitOrder", async (req, res) => {
                 nextBestOrder = {
                     orderId: data.nextBest.orderId,
                     account: data.nextBest.account,
-                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
+                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toFixed(6), TOKENS[quoteSymbol].decimals), // quote asset won't change
                     amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseSymbol].decimals),
                     isBid: data.nextBest.side == 'bid',
                     baseAsset: TOKENS[baseSymbol].address,
