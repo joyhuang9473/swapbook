@@ -339,29 +339,30 @@ const Dashboard = () => {
   };
   
   // Handle withdrawal
-  const initiateWithdrawal = async (token, amount) => {
+  const initiateWithdrawal = async (token) => {
     if (!active || !account) return;
     
     try {
       setIsLoading(true);
 
-      const withdrawalMessage = `Withdraw ${amount} of token ${token.address}`;
+      const withdrawalMessage = `Withdraw funds from escrow for token ${token.address}`;
 
       const signature = await window.ethereum.request({
         method: 'personal_sign',
         params: [withdrawalMessage, account]
       });
 
+      console.log("==frontend signature", signature);
+
       await orderApi.initiateWithdrawal(
         account,
         token.address,
-        amount,
         signature
       );
       
       toast({
         title: 'Success',
-        description: `Withdrawal initiated for ${amount} ${token.symbol}`,
+        description: `Withdrawal initiated for token ${token.symbol}`,
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -370,7 +371,7 @@ const Dashboard = () => {
       console.error('Error initiating withdrawal:', error);
       toast({
         title: 'Error',
-        description: 'Failed to initiate withdrawal',
+        description: 'Failed to initiate withdrawal: ' + error.response.data.message,
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -701,7 +702,7 @@ const Dashboard = () => {
                 <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                   <GridItem>
                     <Button 
-                      onClick={() => initiateWithdrawal(TOKENS.WETH, '0.1')}
+                      onClick={() => initiateWithdrawal(TOKENS.WETH)}
                       isLoading={isLoading}
                       width="full"
                     >
@@ -710,7 +711,7 @@ const Dashboard = () => {
                   </GridItem>
                   <GridItem>
                     <Button 
-                      onClick={() => initiateWithdrawal(TOKENS.USDC, '100')}
+                      onClick={() => initiateWithdrawal(TOKENS.USDC)}
                       isLoading={isLoading}
                       width="full"
                     >

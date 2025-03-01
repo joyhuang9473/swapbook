@@ -68,17 +68,18 @@ export const orderApi = {
   },
 
   // Initiate withdrawal (need to add this endpoint to the Execution Service)
-  initiateWithdrawal: async (account, asset, amount, signature) => {
+  initiateWithdrawal: async (account, asset, signature) => {
     try {
       const response = await api.post(config.api.endpoints.initiateWithdrawal, {
         account,
         asset,
-        amount,
         signature
       });
       return response.data;
     } catch (error) {
-      console.error('Error initiating withdrawal:', error);
+      // show the error message
+      console.error('Error initiating withdrawal:', error.response.data.message);
+
       throw error;
     }
   }

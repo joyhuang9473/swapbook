@@ -154,7 +154,7 @@ async function validateWithdrawal(proofOfTask, data) {
         const amountStr = proofParts[proofParts.indexOf('Amount') + 1];
 
         // Verify signature
-        const withdrawalMessage = `Withdraw ${amountStr} of token ${asset}`;
+        const withdrawalMessage = `Withdraw funds from escrow for token ${asset}`;
         const messageHash = ethers.hashMessage(withdrawalMessage);
         const recoveredAddress = ethers.recoverAddress(messageHash, signature);
 
@@ -178,30 +178,30 @@ async function validateWithdrawal(proofOfTask, data) {
         }
         
         // Check if funds are not locked in open orders
-        const formData = new FormData();
-        formData.append('payload', JSON.stringify({
-            account,
-            asset
-        }));
+        // const formData = new FormData();
+        // formData.append('payload', JSON.stringify({
+        //     account,
+        //     asset
+        // }));
         
-        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/check_available_funds`, {
-            method: 'POST',
-            body: formData
-        });
+        // const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/check_available_funds`, {
+        //     method: 'POST',
+        //     body: formData
+        // });
         
-        if (!response.ok) {
-            console.error("Failed to check available funds in orderbook");
-            return false;
-        }
+        // if (!response.ok) {
+        //     console.error("Failed to check available funds in orderbook");
+        //     return false;
+        // }
         
-        const fundData = await response.json();
+        // const fundData = await response.json();
 
-        if (fundData.lockedAmount && 
-            ethers.parseUnits(fundData.lockedAmount.toString(), 
-                              asset === taskController.token_symbol_address_mapping['WETH'] ? 18 : 6) + amount > escrowedBalance) {
-            console.error("Funds are locked in open orders");
-            return false;
-        }
+        // if (fundData.lockedAmount && 
+        //     ethers.parseUnits(fundData.lockedAmount.toString(), 
+        //                       asset === taskController.token_symbol_address_mapping['WETH'] ? 18 : 6) + amount > escrowedBalance) {
+        //     console.error("Funds are locked in open orders");
+        //     return false;
+        // }
         
         // All checks passed
         console.log(`Withdrawal validated for account ${account}, asset ${asset}, amount ${amount}`);

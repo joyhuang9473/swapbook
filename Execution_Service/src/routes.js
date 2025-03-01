@@ -646,14 +646,44 @@ router.post("/orderBook", async (req, res) => {
 
 router.post("/initiateWithdrawal", async (req, res) => {
     try {
-        const { account, asset, amount, signature } = req.body;
-        
-        if (!account || !asset || !amount || !signature) {
-            return res.status(400).send(new CustomError("Missing required parameters: account, asset, amount, and signature", {}));
+        const { account, asset, signature } = req.body;
+
+        if (!account || !asset || !signature) {
+            return res.status(400).send(new CustomError("Missing required parameters: account, asset, and signature", {}));
+        }
+
+        // if you have orders, you can't withdraw
+        // TODO: hardcoded for now
+        const orderBook = await taskController.generateOrderBook(taskController.token_symbol_address_mapping["WETH"] + "_" + taskController.token_symbol_address_mapping["USDC"]);
+        let isOpenOrder = false;
+        if (asset == TOKENS['WETH'].address) {
+            for (const order of orderBook.orderbook.asks) {
+                if (order['account'] == account) {
+                    isOpenOrder = true;
+                    break;
+                }
+            }
+        } else if (asset == TOKENS['USDC'].address) {
+            console.log("==debug 1");
+            const orders = orderBook.orderbook?.bids || [];
+
+            for (const order of orders) {
+                console.log("==debug account", order['account']);
+
+                if (order['account'] == account) {
+                    console.log("==debug 2");
+                    isOpenOrder = true;
+                    break;
+                }
+            }
+        }
+
+        if (isOpenOrder) {
+            return res.status(400).send(new CustomError("Cannot withdraw funds with open orders", {}));
         }
 
         // Create the message that should have been signed by the user
-        const withdrawalMessage = `Withdraw ${amount} of token ${asset}`;
+        const withdrawalMessage = `Withdraw funds from escrow for token ${asset}`;
         
         // Verify the signature
         const messageHash = ethers.hashMessage(withdrawalMessage);
@@ -663,20 +693,11 @@ router.post("/initiateWithdrawal", async (req, res) => {
             return res.status(401).send(new CustomError("Invalid signature", {}));
         }
         
-        // Create withdrawal data
-        const withdrawalData = {
-            account,
-            asset,
-            amount: ethers.parseUnits(amount.toString(), asset === taskController.token_symbol_address_mapping['WETH'] ? 18 : 6)
-        };
-
         // Check if funds are available in escrow and not locked in orders
         const avsHookAddress = process.env.AVS_HOOK_ADDRESS;
         if (!avsHookAddress) {
             throw new CustomError("AVS_HOOK_ADDRESS environment variable is not set");
         }
-        // Initialize ethers provider for contract events
-        const provider = new ethers.JsonRpcProvider(process.env.L2_RPC_URL);
         if (!provider) {
             throw new CustomError("Failed to initialize provider", {});
         }
@@ -684,9 +705,17 @@ router.post("/initiateWithdrawal", async (req, res) => {
     
         // Check on-chain escrow balance
         const escrowedBalance = await avsHookContract.escrowedFunds(account, asset);
-        if (escrowedBalance < withdrawalData.amount) {
+        const formattedEscrowedBalance = ethers.formatUnits(escrowedBalance, TOKENS[taskController.token_address_symbol_mapping[asset]].decimals);
+        if (formattedEscrowedBalance <= 0) {
             return res.status(400).send(new CustomError("Insufficient funds in escrow", {}));
         }
+
+        // Create withdrawal data
+        const withdrawalData = {
+            account,
+            asset,
+            amount: escrowedBalance  // Use the raw BigNumber from escrowedFunds call
+        };
 
         // Call to order book service to check if funds are locked in open orders
         const formData = new FormData();
@@ -695,28 +724,28 @@ router.post("/initiateWithdrawal", async (req, res) => {
             asset
         }));
         
-        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/check_available_funds`, {
-            method: 'POST',
-            body: formData
-        });
+        // const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/check_available_funds`, {
+        //     method: 'POST',
+        //     body: formData
+        // });
         
-        if (!response.ok) {
-            const errorData = await response.json();
-            return res.status(response.status).send(new CustomError(errorData.error || "Failed to check available funds", {}));
-        }
+        // if (!response.ok) {
+        //     const errorData = await response.json();
+        //     return res.status(response.status).send(new CustomError(errorData.error || "Failed to check available funds", {}));
+        // }
         
-        const fundData = await response.json();
+        // const fundData = await response.json();
         
-        if (fundData.lockedAmount && ethers.parseUnits(fundData.lockedAmount.toString(), TOKENS[asset].decimals) + withdrawalData.amount > escrowedBalance) {
-            return res.status(400).send(new CustomError("Funds are locked in open orders", {}));
-        }
+        // if (fundData.lockedAmount && ethers.parseUnits(fundData.lockedAmount.toString(), TOKENS[asset].decimals) + withdrawalData.amount > escrowedBalance) {
+        //     return res.status(400).send(new CustomError("Funds are locked in open orders", {}));
+        // }
         
         // Check if order book is locked
         if (isOrderBookLocked) {
             // Add withdrawal task to queue
             orderQueue.push({ 
                 type: 'withdrawal', 
-                data: { account, asset, amount, signature }, 
+                data: { account, asset, escrowedBalance, signature }, 
                 res 
             });
             
@@ -736,7 +765,15 @@ router.post("/initiateWithdrawal", async (req, res) => {
         const withdrawalId = ethers.keccak256(
             ethers.solidityPacked(
                 ["address", "address", "uint256", "uint256"],
-                [account, asset, withdrawalData.amount, timestamp]
+                [
+                    account, 
+                    asset, 
+                    ethers.parseUnits(
+                        formattedEscrowedBalance.toString(),
+                        TOKENS[taskController.token_address_symbol_mapping[asset]].decimals
+                    ),
+                    timestamp
+                ]
             )
         );
         
@@ -744,13 +781,13 @@ router.post("/initiateWithdrawal", async (req, res) => {
         currentProcessingWithdrawalId = withdrawalId;
 
         // Prepare withdrawal task proof
-        const proofOfTask = `Withdrawal_${withdrawalId}_User_${account}_Asset_${asset}_Amount_${amount}_Timestamp_${timestamp}_Signature_${signature}`;
+        const proofOfTask = `Withdrawal_${withdrawalId}_User_${account}_Asset_${asset}_Amount_${withdrawalData.amount}_Timestamp_${timestamp}_Signature_${signature}`;
         
         // Send the task to the Validation Service and contract
         // Create withdrawal data - encode it properly for the contract
          const encodedWithdrawalData = ethers.AbiCoder.defaultAbiCoder().encode(
             ["address", "address", "uint256"],
-            [account, asset, ethers.parseUnits(amount.toString(), asset === taskController.token_symbol_address_mapping['WETH'] ? 18 : 6)]
+            [account, asset, escrowedBalance]  // Use the raw BigNumber
         );
         const result = await dalService.sendTaskToContract(proofOfTask, encodedWithdrawalData, 5);
         
@@ -762,7 +799,7 @@ router.post("/initiateWithdrawal", async (req, res) => {
             withdrawalId,
             account,
             asset,
-            amount,
+            amount: formattedEscrowedBalance,
             timestamp,
             message: "Withdrawal initiated successfully"
         }));

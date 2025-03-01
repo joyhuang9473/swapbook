@@ -195,13 +195,14 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
     function extractWithdrawalData(
         bytes calldata taskData
     ) pure private returns (address, address, uint256) {
-        address account = abi.decode(taskData[0:], (address));
-        address asset = abi.decode(taskData[20:], (address));
-        uint256 amount = abi.decode(taskData[40:], (uint256));
+        (
+            address account,
+            address asset,
+            uint256 amount
+        ) = abi.decode(
+            taskData, (address, address, uint256)
+        );
 
-        // address account = address(uint160(uint256(bytes32(taskData[0 : 20]))));
-        // address asset = address(uint160(uint256(bytes32(taskData[20 : 40]))));
-        // uint256 amount = uint256(bytes32(taskData[40 : 72]));
         return (account, asset, amount);
     }
 
