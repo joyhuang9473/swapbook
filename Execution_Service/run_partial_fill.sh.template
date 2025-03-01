@@ -7,8 +7,8 @@ curl -X POST http://localhost:4003/api/limitOrder \
     "price": 2500,
     "quantity": 1,
     "side": "bid",
-    "baseAsset": "WETH",
-    "quoteAsset": "USDC"
+    "baseAsset": "0x56875639b6A79E44b9c81a187a3d9172D6D30560",
+    "quoteAsset": "0xec863cA2A3895Dcc9f16b255c51A392B27184840"
 }'
 
 curl -X POST http://localhost:4003/api/limitOrder \
@@ -18,8 +18,8 @@ curl -X POST http://localhost:4003/api/limitOrder \
     "price": 2500,
     "quantity": 0.5,
     "side": "ask",
-    "baseAsset": "WETH",
-    "quoteAsset": "USDC"
+    "baseAsset": "0x56875639b6A79E44b9c81a187a3d9172D6D30560",
+    "quoteAsset": "0xec863cA2A3895Dcc9f16b255c51A392B27184840"
 }'
 
 # CreateOrder -> CreateOrder -> FillOrder -> UpdateBestPrice
