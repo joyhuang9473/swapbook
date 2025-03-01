@@ -114,10 +114,10 @@ async function validate(proofOfTask, data, taskDefinitionId) {
         }
 
         // Check the necessary data is included correctly from the Order Book (only task 4)
-        if (new_data.taskId == 4 && new_data.nextBest == undefined) {
+        // if (new_data.taskId == 4 && new_data.nextBest == undefined) {
             // Complete order fill, need details of next best order on other side
-            throw new CustomError(`Next best order details required for Complete Order Fill`, new_data);
-        }
+            // throw new CustomError(`Next best order details required for Complete Order Fill`, new_data);
+        // }
 
         // Should include order ID for newly inserted order
         if (new_data.order.orderId == undefined) {

@@ -119,10 +119,27 @@ def register_order(payload: str = Form(...)):
             'timestamp': order['timestamp']
         }
 
+        next_best_order_dict = None
+        if next_best_order is not None:
+
+            next_best_order_dict = {
+                'orderId': int(next_best_order.order_id),
+                'account': next_best_order.account,
+                'price': float(next_best_order.price),
+                'quantity': float(next_best_order.quantity),
+                'side': next_best_order.side,
+                'baseAsset': next_best_order.baseAsset,
+                'quoteAsset': next_best_order.quoteAsset,
+                'trade_id': next_best_order.trade_id,
+                'trades': [],
+                'isValid': True if next_best_order.order_id != 0 else False,
+                'timestamp': next_best_order.timestamp
+            }
+
         return JSONResponse(content={
             "message": "Order registered successfully",
             "order": order_dict,
-            "nextBest": next_best_order,
+            "nextBest": next_best_order_dict,
             "taskId": task_id,
             "status_code": 1
         }, status_code=200)

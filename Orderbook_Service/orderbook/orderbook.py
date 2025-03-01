@@ -190,7 +190,7 @@ class OrderBook(object):
                     # Complete fill
                     task_id = 4
                     if (len(max_price_orders) > 1):
-                        next_best_order = max_price_orders[1]
+                        next_best_order = max_price_orders.head_order.next_order
                 else:
                     # More than one order covered, reject this for now
                     # This is disabled for now as we only track and lock funds for the best order on-chain

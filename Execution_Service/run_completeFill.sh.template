@@ -11,13 +11,15 @@ curl -X POST http://localhost:4003/api/limitOrder \
     "quoteAsset": "0x57e21c96834D72F3C9bD8924d4E850fa474be3d8"
 }'
 
+
 curl -X POST http://localhost:4003/api/limitOrder \
 -H "Content-Type: application/json" \
 -d '{
     "account": "0x4f25a11c64f7215596a0fCB8a275e84779690458",
     "price": 2500,
-    "quantity": 0.5,
+    "quantity": 1,
     "side": "ask",
     "baseAsset": "0x97665202a0d57023d3bd25dF89b0aaE54e67F8F6",
     "quoteAsset": "0x57e21c96834D72F3C9bD8924d4E850fa474be3d8"
 }'
+

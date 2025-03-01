@@ -286,9 +286,11 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
     }
 
     function taskCompleteFillOrder(bytes calldata taskData) private nonReentrant {
+        uint256 ORDER_SIZE = 320; // 10 fields * 32 bytes each (with padding)
+
         // Parse the bytes data into structured data
         Order memory order = extractOrder(taskData, 0);
-        Order memory newBest = extractOrder(taskData, 222);
+        Order memory newBest = extractOrder(taskData, ORDER_SIZE);
 
         // Get current best bid and ask
         BestPrices storage bestPrices = bestBidAndAsk[order.baseAsset][order.quoteAsset];

@@ -493,21 +493,21 @@ router.post("/limitOrder", async (req, res) => {
                     quoteAsset: TOKENS[quoteSymbol].address,
                     quoteAmount: ethers.parseUnits((data.order.price * data.order.quantity).toString(), TOKENS[quoteSymbol].decimals),
                     isValid: false, // just clean up the best price in the contract
-                    timestamp: ethers.parseUnits(data.order.timestamp, TOKENS[baseSymbol].decimals)
+                    timestamp: ethers.parseUnits(data.order.timestamp.toString(), TOKENS[baseSymbol].decimals)
                 }
             } else {
                 // Task 4: need order and next best
                 nextBestOrder = {
-                    orderId: data.nextBestOrder.orderId,
-                    account: data.nextBestOrder.account,
-                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBestOrder.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
-                    amount: ethers.parseUnits(data.nextBestOrder.quantity.toString(), TOKENS[baseSymbol].decimals),
-                    isBid: data.nextBestOrder.side == 'bid',
+                    orderId: data.nextBest.orderId,
+                    account: data.nextBest.account,
+                    sqrtPrice: ethers.parseUnits(Math.sqrt(data.nextBest.price).toString(), TOKENS[quoteSymbol].decimals), // quote asset won't change
+                    amount: ethers.parseUnits(data.nextBest.quantity.toString(), TOKENS[baseSymbol].decimals),
+                    isBid: data.nextBest.side == 'bid',
                     baseAsset: TOKENS[baseSymbol].address,
                     quoteAsset: TOKENS[quoteSymbol].address,
-                    quoteAmount: ethers.parseUnits((data.nextBestOrder.price * data.nextBestOrder.quantity).toString(), TOKENS[quoteSymbol].decimals),
+                    quoteAmount: ethers.parseUnits((data.nextBest.price * data.nextBest.quantity).toString(), TOKENS[quoteSymbol].decimals),
                     isValid: true,
-                    timestamp: ethers.parseUnits(data.nextBestOrder.timestamp, TOKENS[baseSymbol].decimals)
+                    timestamp: ethers.parseUnits(data.nextBest.timestamp.toString(), TOKENS[baseSymbol].decimals)
                 };
             }
 
