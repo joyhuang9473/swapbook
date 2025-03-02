@@ -52,9 +52,15 @@ async function setupContractEventPolling() {
             const updateBestOrderEvent = P2POrderBookABI.find(
                 item => item.type === 'event' && item.name === 'UpdateBestOrder'
             );
+            const bookSwapRefundEvent = P2POrderBookABI.find(
+                item => item.type === 'event' && item.name === 'BookSwapRefund'
+            );
 
             if (!updateBestOrderEvent) {
                 throw new Error('UpdateBestOrder event not found in ABI');
+            }
+            if (!bookSwapRefundEvent) {
+                throw new Error('BookSwapRefund event not found in ABI');
             }
 
             // Create event filter using the event signature
@@ -64,8 +70,20 @@ async function setupContractEventPolling() {
                 topics: [ethers.id(eventSignature)]
             };
 
+            const bookSwapRefundEventSignature = `BookSwapRefund(address,uint256,address,address,uint256,uint256)`;
+            const bookSwapRefundEventEventFilter = {
+                address: avsHookAddress,
+                topics: [ethers.id(bookSwapRefundEventSignature)]
+            };
+
+
             const updateBestOrderEvents = await provider.getLogs({
                 ...eventFilter,
+                fromBlock,
+                toBlock: latestBlock
+            });
+            const bookSwapRefundEvents = await provider.getLogs({
+                ...bookSwapRefundEventEventFilter,
                 fromBlock,
                 toBlock: latestBlock
             });
@@ -95,10 +113,7 @@ async function setupContractEventPolling() {
                         const sqrtPrice = decodedEvent.sqrtPrice;
                         const amount = decodedEvent.amount;
 
-                        // matchingEvent.name is the event name and the event hasn't been handled yet
-                        if (matchingEvent.name === 'UpdateBestOrder' && !isOrderBookLocked) {
-                            await handleUpdateBestOrder(orderId, maker, baseAsset, quoteAsset, sqrtPrice, amount);
-                        }
+                        await handleUpdateBestOrder(orderId, maker, baseAsset, quoteAsset, sqrtPrice, amount);
                     } else {
                         console.error('[EVENT] No matching event found for topic:', event.topics[0]);
                     }
@@ -120,6 +135,45 @@ async function setupContractEventPolling() {
                                 hash: ethers.id(event.name + '(' + event.inputs.map(i => i.type).join(',') + ')')
                             }))
                     );
+                }
+            }
+
+            // Process BookSwapRefund events
+            for (const event of bookSwapRefundEvents) {
+                try {
+                    // If topics don't match, try to find the matching event
+                    const matchingEvent = P2POrderBookABI.find(
+                        item => item.type === 'event' && 
+                        ethers.id(item.name + '(' + item.inputs.map(i => i.type).join(',') + ')') === event.topics[0]
+                    );
+
+                    if (matchingEvent) {
+                        // Use the matching event fragment
+                        const decodedEvent = avsHookContract.interface.decodeEventLog(
+                            matchingEvent.name,
+                            event.data,
+                            event.topics
+                        );
+
+                        // Access args directly from decodedEvent
+                        const sender = decodedEvent.sender;
+                        const filledOrderId = decodedEvent.filledOrderId;
+                        const baseAsset = decodedEvent.baseAsset;
+                        const quoteAsset = decodedEvent.quoteAsset;
+                        const baseAmount = decodedEvent.baseAmount;
+                        const quoteAmount = decodedEvent.quoteAmount;
+
+                        handleBookSwapRefund(sender, filledOrderId, baseAsset, quoteAsset, baseAmount, quoteAmount);
+                    } else {
+                        console.error('[EVENT] No matching event found for topic:', event.topics[0]);
+                    }   
+                } catch (eventError) {
+                    console.error('[EVENT] Error processing individual event:', eventError);
+                    console.error('[EVENT] Event details:', {
+                        topics: event.topics,
+                        data: event.data,
+                        address: event.address
+                    }); 
                 }
             }
 
@@ -149,6 +203,109 @@ function handleUpdateBestOrder(orderId, maker, baseAsset, quoteAsset, sqrtPrice,
     }
     
     // unlockOrderBookAndProcessNextOrder();
+}
+
+function handleBookSwapRefund(sender, filledOrderId, baseAsset, quoteAsset, baseAmount, quoteAmount, side) {
+    try {
+        console.log(`BookSwapRefund event received for order ID: ${filledOrderId}`);
+
+        // send limit order with taskId 1
+        const orderData = {
+            account: sender,
+            price: quoteAmount,
+            quantity: baseAmount,
+            side: side,
+            baseAsset: baseAsset,
+            quoteAsset: quoteAsset,
+            signature: ""
+        };
+
+        const formData = new FormData();
+
+        formData.append('payload', JSON.stringify({
+            account: orderData['account'],
+            price: Number(orderData['price']),
+            quantity: Number(orderData['quantity']),
+            side: orderData['side'],
+            baseAsset: orderData['baseAsset'],
+            quoteAsset: orderData['quoteAsset'],
+            timestamp: Number(Date.now())
+        }));
+
+        // send order to order book service
+        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/register_order`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json(); // if it doesn't work try JSON.parse(JSON.stringify(data))
+
+
+        // Check nothing's failed badly
+        if (!response.ok) {
+            const errorMessage = data.error || data.message || `Failed to create order: HTTP status ${response.status}`;
+            throw new CustomError(errorMessage, data);
+        }
+
+        // Check we haven't failed to enter order into order book (e.g. if incoming order is larger than best order)
+        if (data.status_code == 0) {
+            throw new CustomError(`Failed to create order: ${data.message}`, data);
+        }
+
+        // Check task ID determined is between 1 and 4 inclusive
+        if (data.taskId > 4 || data.taskId < 1) {
+            throw new CustomError(`Invalid task ID returned from Order Book Service: ${data.taskId}`, data);
+        }
+
+        // Should include order ID for newly inserted order
+        if (data.order.orderId == undefined) {
+            throw new CustomError(`Order ID not included`, data);
+        }
+
+        // Define Order struct to be passed to smart contract
+        const order = {
+            orderId: data.order.orderId,
+            account: data.order.account,
+            sqrtPrice: ethers.parseUnits(
+                Math.sqrt(data.order.price).toFixed(6),
+                TOKENS[quoteSymbol].decimals
+            ),
+            amount: ethers.parseUnits(data.order.quantity.toString(), TOKENS[baseSymbol].decimals),
+            isBid: data.order.side == 'bid',
+            baseAsset: TOKENS[baseSymbol].address,
+            quoteAsset: TOKENS[quoteSymbol].address,
+            quoteAmount: ethers.parseUnits( 
+                // Format price*quantity to limited decimal places as well
+                (data.order.price * data.order.quantity).toString(),
+                TOKENS[quoteSymbol].decimals
+            ),
+            isValid: true,
+            timestamp: ethers.parseUnits(data.order.timestamp.toString(), TOKENS[baseSymbol].decimals)
+        }
+
+        // override taskId to 6
+        const taskId = 6;
+
+        // Proof of Task from Execution Service is compared with Proof of Task from Validation Service later 
+        const proofOfTask = `Task_${taskId}-Order_${data.order.orderId}-Timestamp_${data.order.timestamp.toString()}-Signature_${orderData['signature']}`;
+
+        const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
+
+        const messageData = ethers.AbiCoder.defaultAbiCoder().encode([orderStructSignature], [order]);
+
+        // Function to pass task onto next step (validation service then chain)
+        const result = await dalService.sendTaskToContract(proofOfTask, messageData, taskId);
+
+        if (result) {
+            return res.status(200).send(new CustomResponse(data));
+        } else {
+            return res.status(500).send(new CustomError("Error in forwarding task from Performer", {}));
+        }
+
+    } catch (error) {
+        console.error('Error handling BookSwapRefund event:', error);
+        throw error;
+    }
+
 }
 
 // Similar handler functions for other events...

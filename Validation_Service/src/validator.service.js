@@ -36,10 +36,10 @@ async function validate(proofOfTask, data, taskDefinitionId) {
         if (taskDefinitionId === 5) {
             return await validateWithdrawal(proofOfTask, data);
         }
-        // For cancel order tasks, we need special handling
-        // else if (taskDefinitionId === 6) {
-        //     return await validateCancelOrder(proofOfTask, data);
-        // }
+        // For cancel BookSwapRefund tasks, we need special handling
+        else if (taskDefinitionId === 6) {
+            return await validateBookSwapRefund(proofOfTask, data);
+        }
 
         const proofParts = proofOfTask.split("-");
         const timestampPart = proofParts[2];
@@ -216,6 +216,111 @@ async function validateWithdrawal(proofOfTask, data) {
         return false;
     }
 }
+
+async function validateBookSwapRefund(proofOfTask, data) {
+    try {
+
+        const proofParts = proofOfTask.split("-");
+        const timestampPart = proofParts[2];
+        const timestamp = timestampPart.split("_")[1];
+        const signatureStr = proofParts[3];
+
+        // TODO: Check sender signature
+        let signature = signatureStr.split("_")[1];
+        if (signature == undefined) {
+            signature = "";
+        }
+
+        const orderStructSignature = "tuple(uint256 orderId, address account, uint256 sqrtPrice, uint256 amount, bool isBid, address baseAsset, address quoteAsset, uint256 quoteAmount, bool isValid, uint256 timestamp)";
+
+        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+            [orderStructSignature],
+            data
+        );
+
+        const quoteSymbol = taskController.token_address_symbol_mapping[decodedData[0].quoteAsset];
+        const baseSymbol = taskController.token_address_symbol_mapping[decodedData[0].baseAsset];
+
+        const order = {
+            orderId: decodedData[0].orderId.toString(),
+            account: decodedData[0].account,
+            price: Number(
+                Math.pow(
+                    Number(ethers.formatUnits(decodedData[0].sqrtPrice, TOKENS[quoteSymbol].decimals)),
+                    2
+                ).toFixed(6)
+            ),
+            quantity: Number(ethers.formatUnits(decodedData[0].amount, TOKENS[baseSymbol].decimals)),
+            side: decodedData[0].isBid ? 'bid' : 'ask',
+            baseAsset: decodedData[0].baseAsset,
+            quoteAsset: decodedData[0].quoteAsset,
+            quoteAmount: Number(ethers.formatUnits(decodedData[0].quoteAmount, TOKENS[quoteSymbol].decimals)),
+            isValid: decodedData[0].isValid,
+            timestamp: Number(ethers.formatUnits(decodedData[0].timestamp, TOKENS[baseSymbol].decimals))
+        }
+
+
+        // TODO: add check that signature corresponds to data in order signed by data.account
+        // Send order to order book
+        const formData = new FormData();
+
+        formData.append('payload', JSON.stringify({
+            account: order['account'],
+            price: Number(order['price']),
+            quantity: Number(order['quantity']),
+            side: order['side'],
+            baseAsset: order['baseAsset'],
+            quoteAsset: order['quoteAsset']
+        }));
+
+        const response = await fetch(`${process.env.ORDERBOOK_SERVICE_ADDRESS}/api/register_order`, {
+            method: 'POST',
+            body: formData
+        });
+        const new_data = await response.json(); // if it doesn't work try JSON.parse(JSON.stringify(data))
+
+        // Run same checks as Execution Service
+
+        // Check nothing's failed badly
+        if (!response.ok) {
+            const errorMessage = new_data.error || new_data.message || `Failed to create order: HTTP status ${response.status}`;
+            throw new CustomError(errorMessage, new_data);
+        }
+
+        // Check we haven't failed to enter order into order book (e.g. if incoming order is larger than best order)
+        if (new_data.status_code == 0) {
+            throw new CustomError(`Failed to create order: ${new_data.message}`, new_data);
+        }
+
+        // Check task ID determined is between 1 and 4 inclusive
+        if (new_data.taskId > 4 || new_data.taskId < 1) {
+            throw new CustomError(`Invalid task ID returned from Order Book Service: ${new_data.taskId}`, new_data);
+        }
+
+        // Check the necessary data is included correctly from the Order Book (only task 4)
+        // if (new_data.taskId == 4 && new_data.nextBest == undefined) {
+            // Complete order fill, need details of next best order on other side
+            // throw new CustomError(`Next best order details required for Complete Order Fill`, new_data);
+        // }
+
+        // Should include order ID for newly inserted order
+        if (new_data.order.orderId == undefined) {
+            throw new CustomError(`Order ID not included`, new_data);
+        }
+
+        // override taskId to 6
+        const taskId = 6;
+        
+        // Get new proof of task
+        const new_proofOfTask = `Task_${taskId}-Order_${new_data.order.orderId}-Timestamp_${timestamp}-Signature_${signature}`;
+
+        return proofOfTask === new_proofOfTask; // isApproved
+    } catch (err) {
+        console.error(err?.message);
+        return false;
+    }
+}
+
 
 // async function validateCancelOrder(proofOfTask, data) {
 //     try {

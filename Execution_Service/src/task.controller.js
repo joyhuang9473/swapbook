@@ -21,6 +21,7 @@ const taskDefinitionId = {
     Task3: 3,
     Task4: 4,
     Task5: 5,
+    Task6: 6,
 }
 
 const decimal = 18;
