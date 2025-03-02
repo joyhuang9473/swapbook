@@ -10,6 +10,7 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {IAvsLogic} from "./interfaces/IAvsLogic.sol";
 import {IAttestationCenter} from "./interfaces/IAttestationCenter.sol";
 import {console} from "forge-std/console.sol";
@@ -37,7 +38,7 @@ struct BestPrices {
 }
 
 // Limitation: For now, we store just best bid and best ask on-chain (for each token)
-contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
+contract P2POrderBookAvsHook is IAvsLogic, BaseHook, SafeCallback, ReentrancyGuard, Ownable {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using Address for address payable;
@@ -76,6 +77,15 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     // event CancelOrder(uint256 indexed orderId, address indexed maker);
     event WithdrawalProcessed(address indexed account, address indexed asset, uint256 amount);
+
+    event BookSwapRefund(
+        address sender,
+        uint256 indexed filledOrderId,
+        address indexed baseAsset,
+        address indexed quoteAsset,
+        uint256 baseAmount,
+        uint256 quoteAmount
+    );
 
     error TaskNotApproved();
 
@@ -423,7 +433,7 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
             beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
             beforeSwap: true,
-            afterSwap: false,
+            afterSwap: true,
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
@@ -435,64 +445,184 @@ contract P2POrderBookAvsHook is IAvsLogic, BaseHook, ReentrancyGuard, Ownable {
 
     // Data passed: user performing swap, base asset (as seen in hook contract), quote asset (as before), isBid
     // We pass in base and quote asset (instead of unwrapping pool tokens) so we don't need a direction check in the hook
-    function getHookData(
+    function encodeHookData(
         address user,
         address baseAsset,
         address quoteAsset,
-        bool isBid
+        bool isBid,
+        uint256 baseAmount,
+        uint256 quoteAmount
     ) public pure returns (bytes memory) {
-        return abi.encode(user, baseAsset, quoteAsset, isBid);
+        return abi.encode(user, baseAsset, quoteAsset, isBid, baseAmount, quoteAmount);
     }
 
     // Data passed: user performing swap, base asset (as seen in hook contract), quote asset (as before), isBid
     // We pass in base and quote asset (instead of unwrapping pool tokens) so we don't need a direction check in the hook
-    function parseHookData(
+    function decodeHookData(
         bytes calldata data
-    ) public pure returns (address user, address baseAsset, address quoteAsset, bool isBid) {
-        return abi.decode(data, (address, address, address, bool));
+    ) public pure returns (address user) {
+        return abi.decode(data, (address, bool, address, address, uint256, uint256));
     }
 
     /** HOW WE REROUTE ORDERS
      * afterSwap: write an after swap hook. if the user could have gotten a better price on the order book than
-     *   on the pool, swap with the order book now, then reimburse the user with the difference (+ the pool fees).
-     * Note the code below is an outdated and incomplete implementation using the beforeSwap hook.
+     *   on the pool, swap with the order book now, then reimburse the user with the difference (+ the pool fees?).
+
+     * Pool swaps with the book then returns profits to user.
+
+     * User Bid:
+     * 1. User buys baseAmount of baseAsset from Pool (for quoteAmount0)
+     * 2. Pool buys baseAmount of baseAsset from Book (for quoteAmount1, lower than quoteAmount0)
+     * 3. Pool sends (quoteAmount0 - quoteAmount1) of quoteAsset to User
+     
+     * User Ask:
+     * 1. User sells baseAmount of baseAsset to Pool (for quoteAmount0)
+     * 2. Pool sells baseAmount of baseAsset to Book (for quoteAmount1, higher than quoteAmount0)
+     * 3. Pool sends (quoteAmount1 - quoteAmount0) of quoteAsset to User
      */
 
-    function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata hookData)
-        internal
-        virtual
-        override
-        onlyPoolManager
-        returns (bytes4, BeforeSwapDelta, uint24)
-    {
+    function afterSwap(
+        address, // is this sender?
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata swapParams,
+        BalanceDelta delta,
+        bytes calldata hookData
+    ) external override returns (bytes4, int128) {
         // Get swap info from hook data
-        (address user, address baseAsset, address quoteAsset, bool isBid) = parseHookData(hookData);
+        (
+            address user, bool isBid, address baseAsset, address quoteAsset, uint256 baseAmount, uint256 quoteAmount0
+        ) = decodeHookData(hookData);
 
-        // Get pool price (best possible price, for large orders it gets worse)
-        (uint160 poolSqrtPrice,,,) = poolManager.getSlot0(key.toId());
+        // Get pool price
+        // Is this the actual execution price? Or just best price before swap? Or best after swap?
+        // Is there a better way to get execution price? Look into this
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
 
         // Get opposing order
         BestPrices storage bestPrice = bestBidAndAsk[baseAsset][quoteAsset];
         Order storage opposingOrder = (isBid) ? bestPrice.ask : bestPrice.bid;
 
-        // Check if rerouting to book is cheaper
+        // Check if rerouting to book is possible and cheaper
         if (
             !opposingOrder.isValid || // proceed as normal if no opposing order
-            (isBid && opposingOrder.sqrtPrice > poolSqrtPrice) || // or if book is more expensive for bids
-            (!isBid && opposingOrder.sqrtPrice < poolSqrtPrice) // or book is cheaper for asks
+            (isBid && opposingOrder.sqrtPrice > sqrtPriceX96) || // or if book is more expensive for bids
+            (!isBid && opposingOrder.sqrtPrice < sqrtPriceX96) || // or book is cheaper for asks
+            (opposingOrder.amount >= baseAmount) // for now only allow when best order is larger than swap
         ) {
             // This means proceed with swap as normal (with pool)
-            return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
+            return (BaseHook.afterSwap.selector, 0);
         }
 
-        // Book is cheaper: swap there instead of pool
+        // note that a zeroForOne swap means that the pool is actually gaining token0, so limit
+        // order fills are the opposite of swap fills, hence the inversion below
 
-        // // Figure out token amount spent (note this may be wrong, calculate other token amt?)
-        // uint256 token0SpendAmount = swapParams.amountSpecified < 0
-        //     ? uint256(-swapParams.amountSpecified)
-        //     : uint256(int256(-swapParams.amountSpecified));
+        // Swap with the book (opposing order) & update opposing order:
 
-        return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
+        // Settlement
+
+        // We know baseAmount is less than best order base amount from previous checks
+
+        // Step 1 (already occured): User buys/sells baseAmount of baseAsset from Pool (for quoteAmount0)
+
+        // Calculate quoteAmount1 (baseAmount * opposing order price)
+        uint256 opposingPrice = opposingOrder.sqrtPrice * opposingOrder.sqrtPrice;
+        uint256 quoteAmount1 = (baseAmount * opposingPrice) / IERC20(baseAsset).decimals(); // can replace with muldiv
+
+        if (isBid) {
+            // Step 2: Pool buys baseAmount of baseAsset from Book (for quoteAmount1, lower than quoteAmount0)
+
+            // Transfer quoteAsset to opposing user
+            // Here: decrease pool balance of quoteAsset by quoteAmount1 (use TAKE?)
+            escrowedFunds[opposingOrder.account][quoteAsset] += quoteAmount1;
+
+            // Transfer baseAsset to Pool
+            escrowedFunds[opposingOrder.account][baseAsset] -= baseAmount;
+            // Here: increase pool balance of baseAsset by baseAmount (is transfer enough, or do we need an action?)
+            IERC20(baseAsset).transfer(address(poolManager), baseAmount);
+
+            // Step 3: Pool sends (quoteAmount0 - quoteAmount1) of quoteAsset to User
+            uint256 reimbursement = quoteAmount0 - quoteAmount1;
+            // Here: send reimbursement to user to zero deltas (use TAKE, MINT, or SETTLE?)
+        } else {
+            // Step 2: Pool sells baseAmount of baseAsset from Book (for quoteAmount1, higher than quoteAmount0)
+
+            // Transfer baseAsset to opposing user
+            // Here: decrease pool balance of baseAsset by baseAmount (use TAKE?)
+            escrowedFunds[opposingOrder.account][baseAsset] += baseAmount;
+
+            // Transfer quoteAsset to Pool
+            escrowedFunds[opposingOrder.account][quoteAmount0] -= quoteAmount1;
+            // Here: increase pool balance of quoteAsset by quoteAmount1 (is transfer enough, or do we need an action?)
+            IERC20(quoteAsset).transfer(address(poolManager), quoteAmount1);
+
+            // Step 3: Pool sends (quoteAmount1 - quoteAmount0) of quoteAsset to User
+            uint256 reimbursement = quoteAmount1 - quoteAmount0;
+            // Here: send reimbursement to user to zero deltas (use TAKE, MINT, or SETTLE?)
+        }
+
+        // A negative delta signals that the PoolManager is owed tokens, while a positive one
+        // expresses a token balance that needs to be paid to its user.
+
+        // Price Update (reduce best order size)
+
+        emit UpdateBestOrder(
+            opposingOrder.orderId,
+            baseAsset,
+            quoteAsset,
+            opposingOrder.amount - baseAmount,
+            opposingOrder.quoteAmount - quoteAmount1
+        );
+
+        // Emit event to update AVS books
+        emit BookSwapRefund(
+            user,
+            opposingOrder.orderId,
+            baseAsset,
+            quoteAsset,
+            baseAmount,
+            quoteAmount0
+        );
+
+        // No need to interrupt swap with this model
+        return (BaseHook.afterSwap.selector, 0);
     }
+
+
+    // function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata hookData)
+    //     internal
+    //     virtual
+    //     override
+    //     onlyPoolManager
+    //     returns (bytes4, BeforeSwapDelta, uint24)
+    // {
+    //     // Get swap info from hook data
+    //     (address user, address baseAsset, address quoteAsset, bool isBid) = parseHookData(hookData);
+
+    //     // Get pool price (best possible price, for large orders it gets worse)
+    //     (uint160 poolSqrtPrice,,,) = poolManager.getSlot0(key.toId());
+
+    //     // Get opposing order
+    //     BestPrices storage bestPrice = bestBidAndAsk[baseAsset][quoteAsset];
+    //     Order storage opposingOrder = (isBid) ? bestPrice.ask : bestPrice.bid;
+
+    //     // Check if rerouting to book is cheaper
+    //     if (
+    //         !opposingOrder.isValid || // proceed as normal if no opposing order
+    //         (isBid && opposingOrder.sqrtPrice > poolSqrtPrice) || // or if book is more expensive for bids
+    //         (!isBid && opposingOrder.sqrtPrice < poolSqrtPrice) // or book is cheaper for asks
+    //     ) {
+    //         // This means proceed with swap as normal (with pool)
+    //         return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
+    //     }
+
+    //     // Book is cheaper: swap there instead of pool
+
+    //     // // Figure out token amount spent (note this may be wrong, calculate other token amt?)
+    //     // uint256 token0SpendAmount = swapParams.amountSpecified < 0
+    //     //     ? uint256(-swapParams.amountSpecified)
+    //     //     : uint256(int256(-swapParams.amountSpecified));
+
+    //     return (BaseHook.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
+    // }
 
 }
