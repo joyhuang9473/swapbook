@@ -162,8 +162,9 @@ async function setupContractEventPolling() {
                         const quoteAsset = decodedEvent.quoteAsset;
                         const baseAmount = decodedEvent.baseAmount;
                         const quoteAmount = decodedEvent.quoteAmount;
+                        const side = decodedEvent.isBid ? 'bid' : 'ask';
 
-                        handleBookSwapRefund(sender, filledOrderId, baseAsset, quoteAsset, baseAmount, quoteAmount);
+                        handleBookSwapRefund(sender, filledOrderId, baseAsset, quoteAsset, baseAmount, quoteAmount, side);
                     } else {
                         console.error('[EVENT] No matching event found for topic:', event.topics[0]);
                     }   
