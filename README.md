@@ -1,8 +1,16 @@
 # SwapBook - Bringing TradFi Efficiency On-Chain
 
-DEMO VIDEO for EigenGames submission: [Google Drive](https://drive.google.com/drive/folders/1DG2qO9vtAnXogHjWe0albc-6dTyG0Ri-?usp=sharing).
+[Slides](https://drive.google.com/drive/folders/1DG2qO9vtAnXogHjWe0albc-6dTyG0Ri-) | [YouTube](https://www.youtube.com/watch?v=hsSNJHQe_PQ) | [Devfolio](https://devfolio.co/projects/swapbook-9ea0)
 
 A decentralized peer-to-peer orderbook system built with EigenLayer's AVS (Autonomous Verifiable Service) using Othentic and Uniswap V4 Hook integration, enabling better execution prices by routing trades between the orderbook and AMMs.
+
+- [The Eigen Games 2025] 2nd place in Uniswap V4 & Unichain DeFi Innovation
+- [The Eigen Games 2025] [3rd place in The Eigen Games Champion](https://x.com/eigenlayer/status/1897364783546118212)
+- [ETHDenver 2025] [EigenLayer: Second Prize: Best Eigen App](https://devfolio.co/projects/swapbook-9ea0)
+- [ETHDenver 2025] [Uniswap: Third Prize: Uniswap V4 on Unichain Innovation](https://devfolio.co/projects/swapbook-9ea0)
+
+
+DEMO VIDEO for EigenGames submission: [Google Drive](https://drive.google.com/drive/folders/1DG2qO9vtAnXogHjWe0albc-6dTyG0Ri-?usp=sharing).
 
 To quickly see how it comes together check out our [Architecture Diagram](assets/InteractionFlow.png), [Placing Order Flow](assets/PlaceOrderFlow.png), and [Uniswap Hook Flow](assets/HookFlow.png).
 
