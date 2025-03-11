@@ -147,8 +147,3 @@ For development information, see each service's README for specific instructions
 The system includes Prometheus and Grafana for monitoring:
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000` (default credentials: admin/admin)
-
-## License
-
-[MIT License](LICENSE)
-
